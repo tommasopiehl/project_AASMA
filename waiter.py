@@ -46,13 +46,12 @@ class Client:
 
     def compute_mood(self, wait_time):
         #heuristic function for mood of client
+        
+        mood_const_ls = [-0.5, -0.5, 0.5, 0.1]
+        mood_const = mood_const_ls[self.status]
 
-        mood_const = 0.5
+        self.mood += mood_const*wait_time
 
-        if self.status == 2:
-            self.mood += mood_const*wait_time
-        else:
-            self.mood -= wait_time*mood_const
 
     def status2str(self):
         #translates the status of a table to the string 
