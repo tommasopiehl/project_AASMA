@@ -2,8 +2,6 @@ from waiter import Agent, Table, Client, Kitchen
 import numpy as np
 import random
 
-#ciao ciao
-
 class Settings:
 
     def __init__(self):
