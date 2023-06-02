@@ -283,6 +283,7 @@ class Agent(Kitchen):
     def allowed_serve(self, table_states, ready):
 
         allowed = []
+
         for i, table_state in enumerate(table_states):
             if table_state == 1:
                     if ready[i] == 3:

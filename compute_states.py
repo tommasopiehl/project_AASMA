@@ -23,3 +23,23 @@ def main():
     return state_rows
 
 #Total amount 31104
+
+
+#MANUAL CONTROLL CODE
+
+# act_int = int(input("Enter move: "))
+
+            # agent.action = act_int
+
+            # act_encode = agent.int2act(act_int)
+
+            # if act_encode[0] == 1:
+            #     agent.act_seat(groups[act_encode[1][0]], tables[act_encode[1][1]], kitchen)
+
+            # if act_encode[0] == 2:
+            #     agent.act_serve(groups[act_encode[1]], kitchen)
+
+            # if act_encode[0] == 3:
+            #     group = groups[act_encode[1]]
+            #     table = group.table
+            #     agent.act_bill(group, table)

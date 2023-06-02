@@ -9,6 +9,7 @@ def main_game(n_tables = (2, 3), n_groups = (2, 3)):
     game_over = 0
     agent = Agent()
     agent.action = 0
+    agent.init_ac
     agent_wait = False
     controlller = AgentControllerRL()
 
@@ -119,7 +120,8 @@ def main_game(n_tables = (2, 3), n_groups = (2, 3)):
                         allowed_reformat.append(i)
                 print("allowed moves:", allowed_reformat)
                 int_act = controlller.epsilon_greedy(allowed_reformat, q_rows.index(current))
-                agent.int2act(int_act, groups=groups, tables=tables)
+                act_encoded = agent.int2act(int_act, groups=groups, tables=tables)
+                print("current move: ")
 
             # if int_act == 0:
             #     #seat group: "seat_g" at table "seat_t" and take their orders
