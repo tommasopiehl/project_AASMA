@@ -2,7 +2,11 @@ from waiter import Agent, Table, Client, Kitchen, AgentControllerRL, Order
 import numpy as np
 import random
 
-#ciao ciao
+class Settings:
+
+    def __init__(self):
+        self.max_clients = None
+        self.max_plates = None
 
 def main_game(n_tables = (2, 3), n_groups = (2, 3)):
 
