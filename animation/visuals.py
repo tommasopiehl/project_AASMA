@@ -1,6 +1,6 @@
 import pygame
 from math import floor
-from classes
+from classes import Table, Place, Waiter, Kitchen
 
 size_table = [2, 3, 4]
 size_place = 50
