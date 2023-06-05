@@ -2,29 +2,6 @@ import random
 import numpy
 import itertools
 
-def main():
-
-    state_count = 0
-    state_rows = []
-
-    for state_agent in range(0, 4):
-        for wait_kitchen in range(0, 9):
-            for cook_kitchen in range(0, 4):
-                for ready_kitchen in range(0, 9):
-                        for state_group_1 in range(0, 4):
-                            for state_group_2 in range(0, 4):
-                                for state_group_3 in range(0, 4):
-                                    for state_table_1 in range(0, 2):
-                                        for state_table_2 in range(0, 2):
-                                            for state_table_3 in range(0, 2):
-                                                state_rows.append([state_agent, wait_kitchen, cook_kitchen, ready_kitchen, 
-                                                state_group_1, state_group_2, state_group_3, state_table_1, state_table_2, state_table_3])
-
-    return state_rows
-
-#Total amount 31104
-
-
 #MANUAL CONTROLL CODE
 
 # act_int = int(input("Enter move: "))
@@ -43,3 +20,37 @@ def main():
             #     group = groups[act_encode[1]]
             #     table = group.table
             #     agent.act_bill(group, table)
+
+
+#Code for printing info while running
+
+# print("tables:")
+                # for table in tables:
+                #     print("table index:", table.index, ", table status:", table.status2str(), ", table size:", table.size)
+
+                # print("groups")
+                # for group in groups:
+                #     if group.state != 4:
+                #         group.waiting[group.state] += 1
+                #     if group.state == 2:
+                #         if group.waiting[2] == 4:
+                #             group.state = 3
+                #     print("index:", group.index, ", mood:", group.mood, ", state: ", group.state, "order state", group.order.state)
+
+                # if time > 0:
+
+                #     #Update kitchen before printing info
+
+                #     print("cooking:", kitchen.cooking_cnt)
+                #     for dish in kitchen.cooking:
+                #         print("time left:", dish[0], ", group: ", dish[1])
+                #     print("waiting:", kitchen.waiting_cnt)
+                #     for dish in kitchen.waiting:
+                #         print("time:", dish[0], ", group: ", dish[1])
+                #     print("ready:", kitchen.ready_cnt)
+                #     for dish in kitchen.ready.keys():
+                #         print("group:", dish, ", count:", kitchen.ready[dish])
+
+    #print("allowed moves:", allowed_reformat)
+    #print("chosen move: ", agent.act2str(int_act))
+    #print("Q row before update:", controller.Q[q_rows.index(current)])
