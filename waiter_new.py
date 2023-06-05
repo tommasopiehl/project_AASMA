@@ -51,7 +51,10 @@ class ClientGroup:
         self.state = None # [0 = wait for seat, 1 = waiting for food, 2 = eating, 3 = waiting for bill]
         self.order = None # Order-class object
         self.waiting = np.zeros(4) # Time spent in each group "state"
+        #NOTE: 2000 IS USED TO AVOID USING NONE
+        self.stop_waiting = [[[1,2,3],[4,5],[6]],[7,8,9],[2000, 2000, 2000],[10,11,12]] #The actions from the agent for which the group are waiting, list[group_state][group_index]
         self.mood = 0 # Current mood of group
+        self.batch = None # To track the total waiting time/mood for each "group of groups" that enters the restaurant
         
 
     def compute_mood(self, wait_time):
@@ -304,46 +307,47 @@ class Agent(Kitchen):
 
         return allowed
 
-    def reward_seat(self, seat_group, table, all_groups):
+    # VLAUES TO ADJUST FOR Q-LEARNING
+
+    def reward_seat(self, seat_group, table, all_groups, allowed):
 
         R = 0
-        R -= np.abs(table.size - seat_group.size) * 2
+        R -= np.abs(table.size - seat_group.size) * 5
         
         for group in all_groups:
-            R += seat_group.waiting[0] - group.waiting[group.state]
-            if group.state == 1:
-                if group.order.state == 3:
-                    R -= 1
+            if group.state != 4:
+                if group.stop_waiting[group.state][group.index] in allowed:
+                    R += seat_group.waiting[0] - group.waiting[group.state]
 
-        R += seat_group.waiting[0]*10
+        R += seat_group.waiting[0]
         self.R_total += R
 
         return R
     
-    def reward_serve(self, serve_group, all_groups):
-        
-        R = 3
-
-        for group in all_groups:
-            R += serve_group.waiting[1] - group.waiting[group.state]
-
-        R += group.waiting[group.state]*10
-        self.R_total += R
-
-        return R
-
-    def reward_bill(self, bill_group, all_groups):
+    def reward_serve(self, serve_group, all_groups, allowed):
         
         R = 0
 
         for group in all_groups:
             if group.state != 4:
-                R += bill_group.waiting[3] - group.waiting[group.state]
-                if group.state == 1:
-                    if group.order.state == 3:
-                        R -= 1
+                if group.stop_waiting[group.state][group.index] in allowed:
+                    R += serve_group.waiting[1] - group.waiting[group.state]
 
-        R += bill_group.waiting[3]*10
+        R += group.waiting[group.state]
+        self.R_total += R
+
+        return R
+
+    def reward_bill(self, bill_group, all_groups, allowed):
+        
+        R = 0
+
+        for group in all_groups:
+            if group.state != 4:
+                if group.stop_waiting[group.state][group.index] in allowed:
+                    R += bill_group.waiting[3] - group.waiting[group.state]
+
+        R += bill_group.waiting[3]
         self.R_total += R
 
         return R
@@ -352,18 +356,22 @@ class Agent(Kitchen):
 
         R = 0
 
-        R -= (len(allowed_actions)-1)*10
+        R -= (len(allowed_actions)-1)*30
         self.R_total += R
 
         return R
 
+    #------------------------------
 
 class AgentControllerRL(Agent, Kitchen, Table, ClientGroup):
 
     def __init__(self):
         
-        self.alpha = 0
-        self.gamma = 0
+        # VLAUES TO ADJUST FOR Q-LEARNING
+        self.alpha = 0.8
+        self.gamma = 0.3
+        #------------------------------
+
         self.eps_init = None
         self.eps_final = None
         self.episode_max = None
@@ -462,5 +470,27 @@ class AgentControllerRL(Agent, Kitchen, Table, ClientGroup):
             else:
                 action = np.random.choice(all_actions)
                 print("random move", action)
+
+        elif eps_type == 'linear':
+            p = np.random.uniform(0, 1)
+            if LinearEpsilon(anneal_timesteps, epsilon_final, epsilon_initial).value(current_total_steps) >= p:
+                action = np.nanargmax(Q[state_indx])
+            else:
+                action = np.random.choice(all_actions)
+
         return action
+
+#for linear epsilon
+
+class LinearEpsilon(object):
+    def __init__(self, schedule_timesteps, final_p, initial_p=1.0):
+        self.schedule_timesteps = schedule_timesteps
+        self.final_p = final_p
+        self.initial_p = initial_p
+
+    def value(self, t):
+        # Return the annealed linear value
+        delta_e = self.final_p - self.initial_p
+        e_t = self.initial_p + delta_e * (t/self.schedule_timesteps)
+        return e_t
 
