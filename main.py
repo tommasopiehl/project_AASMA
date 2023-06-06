@@ -1,10 +1,12 @@
-from environment import Table, ClientGroup, Restaurant, Order
-from agents import Agent, Kitchen
+import argparse
+import string
+from environment import Kitchen, Table, Order, ClientGroup, Restaurant, compute_rows
+from agents import RandomAgent, QLearning, SARSA
 import numpy as np
 import random
 
 # modes: constant = q_learning with constant epsilon, linear = q_learning with linear epsilon, sarsa = q_learning with sarsa algorithm, random = random agent
-def main_game(controller, mode="constant"): 
+def main_game(controller, tables, groups, orders, agent, mode="random"): 
 
     diff_Q = 0
     n_episodes = 35 # How many "groups of client-groups" we will let in during the entire process
@@ -15,18 +17,10 @@ def main_game(controller, mode="constant"):
     episode = 0
     done_cnt = 0
 
-    agent = Agent()
-    agent.action = 0
-    agent.init_actions()
-    agent.R_total = 0
-
-
-    
-
     #Init q-table
     #TODO Change to q table to the agent
-    q_rows, rows_count = controller.compute_rows()
-    controller.q_init(q_rows=q_rows, rows_count=rows_count)
+    q_rows, rows_count = compute_rows()
+    agent.q_init(q_rows=q_rows, rows_count=rows_count)
 
     
     time = 0
@@ -77,7 +71,7 @@ def main_game(controller, mode="constant"):
                         allowed_reformat.append(i)
 
 
-                agent.action = currentAction
+                agent.state = currentAction
 
                 act_encode = agent.int2act(currentAction)
 
@@ -141,7 +135,6 @@ def main_game(controller, mode="constant"):
                 done_cnt = 0
             
 
-
     else:
         while episode < n_episodes:
             
@@ -168,7 +161,7 @@ def main_game(controller, mode="constant"):
                         group.state = 3
             
             current = controller.env2array(agent, groups=groups, tables=tables, orders=orders)
-            current_row = controller.Q[q_rows.index(current)]
+            current_row = agent.Q[q_rows.index(current)]
 
             allowed_reformat = []
             for i in range(len(current_row)):
@@ -184,9 +177,9 @@ def main_game(controller, mode="constant"):
 
             #Random agent
             if mode == "random":
-                int_act = np.random.choice(allowed_reformat)
+                int_act = agent.action(allowed_reformat)
 
-            agent.action = int_act
+            agent.state = int_act
 
             act_encode = agent.int2act(int_act)
 
@@ -235,12 +228,17 @@ def main_game(controller, mode="constant"):
             for group in groups:
                 if group.state == 4:
                     done_cnt += 1
-                    if done_cnt == 3:
-                        for group in groups:
-                            group.reset_group()
-                            group.batch += 1
-                            episode = group.batch
-                            done_cnt = 0
+                        
+            if done_cnt == 3:
+                done_cnt = 0
+
+                for group in groups:
+                    group.reset_group()
+                    group.batch += 1
+                    episode = group.batch
+                # break
+
+            done_cnt = 0
 
     print("Result for ", mode, "mode with alpha:", controller.alpha, " and gamma:", controller.gamma)
     print("waiting time per batch:",wait_ls)
@@ -253,7 +251,7 @@ def main_game(controller, mode="constant"):
 
 
 if __name__ == '__main__':
-
+    
     n_tables = (2, 3, 4)
     n_groups = (2, 3, 4)
 
@@ -262,10 +260,6 @@ if __name__ == '__main__':
 
     #Init kitchen
     kitchen = Kitchen()
-    kitchen.init_menu()
-    kitchen.waiting_cnt = 0
-    kitchen.cooking_cnt = 0
-    kitchen.ready_cnt = 0
 
     for i in range(len(n_groups)):
         kitchen.ready[i] = 0
@@ -276,31 +270,32 @@ if __name__ == '__main__':
     orders = []
 
     for i in range(len(n_tables)):
-        table = Table(k = n_tables[i])
-        group = ClientGroup()
-        order = Order()
+        table = Table(index=i, size=n_tables[i])
+        group = ClientGroup(index=i, size=n_groups[i], batch=0)
+        order = Order(group=group)
 
-        table.state = 0
-        table.index = i
-
-        group.state = 0
-        group.index = i
-        group.size = i + 2
-        group.batch = 0
-        order.state = 0
-        order.size = group.size
-
-        order.group = group
         group.order = order
-
-        order.dishes = np.zeros(order.group.size)
 
         tables.append(table)
         groups.append(group)
         orders.append(order)
 
-
     # 2 - Setup agent
+    seat = ()
+    serve = ()
+    bill = ()
+
+    for i in range(len(n_groups)):
+        serve += (i, )
+
+        for j in range(len(n_tables)):
+            seat += ([i, j], )
+            
+    bill = serve
+
+    agent = RandomAgent(seat, serve, bill)
+    # agent = QLearning(seat, serve, bill)
+    # agent = SARSA(seat, serve, bill)
 
     # 3 - Evaluate agent
-    main_game(controller, mode = "sarsa")
+    main_game(controller, tables, groups, orders, agent, "random")

@@ -1,104 +1,21 @@
 import numpy as np
 
-#CLASS FOR THE KITCHEN
 
-class Kitchen:
+class Agent():
 
-    def __init__(self):
-        
-        self.menu = None
-        self.cooking_cnt = None
-        self.ready_cnt = None
-        self.waiting_cnt = None
-        self.cooking = [] # [time left, group]
-        self.ready = {} # {"group": amount ready}
-        self.waiting = [] # [preparation time, group]
-
-    def init_menu(self):
-
-        self.menu = [[3,3]]
-
-    def status2str(self, dish_status):
-
-        # Translates the status of an order to a string 
-        
-        status_dict = {
-            "ready":(2),
-            "being prepared":(1),
-            "waiting to be prepared":(0),
-        }
-
-        for key, val in status_dict.items():
-            if val == dish_status:
-                return key
-
-    def add_order(self, table_order):
-        # Takes order from entire table to kitchen
-
-        while self.cooking_cnt < 4 and self.waiting_cnt > 0:
-            self.cooking.append(self.waiting.pop(0))
-            self.waiting_cnt -= 1
-            self.cooking_cnt += 1
-            
-        for order in table_order.dishes:   
-            if self.cooking_cnt < 4:   
-                self.cooking_cnt += 1     
-                self.cooking.append([3, table_order.group.index])
-            else:
-                self.waiting_cnt += 1
-                self.waiting.append([3, table_order.group.index])
-
-    def kitchen_step(self, orders):
-        # Tracks progress of cooking in kitchen
-
-        for i in range(0, self.cooking_cnt):
-            if self.cooking[i][0] <= 0 and self.cooking[i][0] != -1:
-                self.ready[self.cooking[i][1]] += 1
-                self.cooking[i][0] = -1
-                self.cooking_cnt -= 1
-                self.ready_cnt += 1
-        
-        for i, order in enumerate(orders):
-            if self.ready[order.group.index] == order.size:
-                order.state = 3
-                    
-        self.cooking[:] = [dish for dish in self.cooking if dish[0] != -1]
-
-        while self.cooking_cnt < 4 and self.waiting_cnt > 0:
-            self.cooking.append(self.waiting.pop(0))
-            self.waiting_cnt -= 1
-            self.cooking_cnt += 1
-
-        for i in range(0, len(self.cooking)):
-            self.cooking[i][0] -= 1
-
-    def kitchen_serve(self, group):
-        #removes served dishes from kitchen data
-
-        self.ready[group.index] = 0
-        self.ready_cnt -= group.size
-
-
-
-class Agent(Kitchen):
-
-    def __init__(self):
-        
-        self.action = None # 0 < Current action < 13
-        self.state = None # [0 = free, 1 = busy]
-        self.action_dict = None # {"free" = [], "seat" = [groups, tables], "serve" = [groups], "bill" = [groups]}
-        self.kitchen = None  
-        self.R_total = None #Total reward achieved
-
-    def init_actions(self):
-
+    def __init__(self, seat, serve, bill):
+        self.state = 0 # 0 < Current action < 13
         self.action_dict = {
             "free":(),
-            "seat":([0,0], [0,1], [0,2], [1,1], [1,2], [2,2]),
-            "serve":(0, 1, 2),
-            "bill":(0, 1, 2)
-        }
+            "seat":seat,
+            "serve":serve,
+            "bill":bill
+        } # {"free" = [], "seat" = [groups, tables], "serve" = [groups], "bill" = [groups]}
+        
+        self.Q = None 
+        self.totalReward = 0 #Total reward achieved
 
+    
     def act2int(self, act, params):
 
         if act == "free":
@@ -132,7 +49,6 @@ class Agent(Kitchen):
         if act > 9 and act <= 12:
             g = self.action_dict["bill"][act-10]
             return "bill to group "+str(g)
-
 
     def int2act(self, int_act):
 
@@ -221,6 +137,41 @@ class Agent(Kitchen):
 
         return allowed
 
+    def q_init(self, q_rows, rows_count):
+
+        q_cols = 13 # each action and variation of action
+
+        #Define the q-table
+        self.Q = np.random.uniform(low=0.0, high=1.0, size=(rows_count, q_cols))
+
+        all_actions = list(range(0, 14))
+
+        for indx, row in enumerate(q_rows):
+            order_states = row[1:4]
+            group_states = row[4:7]
+            table_states = row[7:10]
+            allowed = self.allowed_action_list(group_states, table_states, order_states)
+
+            for i in range(0, 13):
+                if all_actions[i] not in allowed:
+                    self.Q[indx][i] = np.nan
+
+    def allowed_action_list(self, groups, tables, orders):
+
+        allowed = []
+
+        allowed.append(0)
+        for action in self.allowed_seat(groups=groups, tables=tables):
+            allowed.append(action)
+        
+        for action in self.allowed_serve(groups=groups, orders=orders):
+            allowed.append(action)
+        
+        for action in self.allowed_bill(groups=groups):
+            allowed.append(action)
+
+        return allowed
+
     # VLAUES TO ADJUST FOR Q-LEARNING
 
     def reward_seat(self, seat_group, table, all_groups, allowed):
@@ -234,7 +185,7 @@ class Agent(Kitchen):
                     R += seat_group.waiting[0] - group.waiting[group.state]
 
         R += seat_group.waiting[0]
-        self.R_total += R
+        self.totalReward += R
 
         return R
     
@@ -248,7 +199,7 @@ class Agent(Kitchen):
                     R += serve_group.waiting[1] - group.waiting[group.state]
 
         R += group.waiting[group.state]
-        self.R_total += R
+        self.totalReward += R
 
         return R
 
@@ -262,7 +213,7 @@ class Agent(Kitchen):
                     R += bill_group.waiting[3] - group.waiting[group.state]
 
         R += bill_group.waiting[3]
-        self.R_total += R
+        self.totalReward += R
 
         return R
 
@@ -271,11 +222,30 @@ class Agent(Kitchen):
         R = 0
 
         R -= (len(allowed_actions)-1)*30
-        self.R_total += R
+        self.totalReward += R
 
         return R
 
     #------------------------------
+
+class RandomAgent(Agent):
+
+    def __init__(self, seat, serve, bill):
+        super(RandomAgent, self).__init__(seat, serve, bill)
+
+    def action(self, allowed_reformat) -> int:
+        return np.random.choice(allowed_reformat)
+
+class QLearning(Agent):
+
+    def __init__(self, seat, serve, bill):
+        super(QLearning, self).__init__(seat, serve, bill)
+
+class SARSA(Agent):
+
+    def __init__(self, seat, serve, bill):
+        super(SARSA, self).__init__(seat, serve, bill)
+
 
 #for linear epsilon
 
