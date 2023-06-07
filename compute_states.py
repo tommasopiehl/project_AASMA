@@ -2,6 +2,8 @@ import random
 import numpy
 import itertools
 
+ls = [1,2,3]
+print(ls[1:])
 #MANUAL CONTROLL CODE
 
 # act_int = int(input("Enter move: "))

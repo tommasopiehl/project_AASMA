@@ -104,7 +104,7 @@ class Kitchen:
 
     def init_menu(self):
 
-        self.menu = [[3,3]]
+        self.menu = [3, 3] #Cooking time for each of the two dishes
 
     def status2str(self, dish_status):
 
@@ -131,10 +131,11 @@ class Kitchen:
         for order in table_order.dishes:   
             if self.cooking_cnt < 4:   
                 self.cooking_cnt += 1     
-                self.cooking.append([3, table_order.group.index])
+                self.cooking.append([self.menu[order], table_order.group.index])
+                table_order.state = 2
             else:
                 self.waiting_cnt += 1
-                self.waiting.append([3, table_order.group.index])
+                self.waiting.append([self.menu[order], table_order.group.index])
 
     def kitchen_step(self, orders):
         # Tracks progress of cooking in kitchen
@@ -175,6 +176,10 @@ class Agent(Kitchen):
         self.action_dict = None # {"free" = [], "seat" = [groups, tables], "serve" = [groups], "bill" = [groups]}
         self.kitchen = None  
         self.R_total = None #Total reward achieved
+        self.R_seat = 0
+        self.R_serve = 0
+        self.R_bill = 0
+        self.R_wait = 0
 
     def init_actions(self):
 
@@ -307,8 +312,6 @@ class Agent(Kitchen):
 
         return allowed
 
-    # VLAUES TO ADJUST FOR Q-LEARNING
-
     def reward_seat(self, seat_group, table, all_groups, allowed):
 
         R = 0
@@ -333,7 +336,7 @@ class Agent(Kitchen):
                 if group.stop_waiting[group.state][group.index] in allowed:
                     R += serve_group.waiting[1] - group.waiting[group.state]
 
-        R += group.waiting[group.state]
+        R += serve_group.waiting[serve_group.state]
         self.R_total += R
 
         return R
@@ -361,8 +364,6 @@ class Agent(Kitchen):
 
         return R
 
-    #------------------------------
-
 class AgentControllerRL(Agent, Kitchen, Table, ClientGroup):
 
     def __init__(self):
@@ -374,16 +375,18 @@ class AgentControllerRL(Agent, Kitchen, Table, ClientGroup):
 
         self.eps_init = None
         self.eps_final = None
-        self.episode_max = None
+        self.n_episodes = None
         self.current_env = None
         self.agent = None
         self.Q = None #Not sure if its good to have the table as class attribute
         self.diff = None #Difference between tables, used as threshold for convergence
+        self.n_random = 0 #Only to check
+        self.n_best = 0 #Only to check
+        self.eps=[]
 
     def env2array(self, agent, groups, tables, orders):
             
         self.current_env = []
-        self.current_env.append(agent.action)
         for order in orders:
             self.current_env.append(order.state)
         for group in groups:
@@ -400,19 +403,19 @@ class AgentControllerRL(Agent, Kitchen, Table, ClientGroup):
 
         #NOTE: WE JUST TRACK ORDERS OF TABLES/GROUPS INSTEAD OF INDIVIDUAL DISHES
 
-        for state_agent in range(0, 13): # 0 = free, rest is taken from action_dict
-            for order_1 in range(0, 5): # States of each order
-                for order_2 in range(0, 5):
-                    for order_3 in range(0, 5): # -----
-                        for state_group_1 in range(0, 5): # States of each group
-                            for state_group_2 in range(0, 5):
-                                for state_group_3 in range(0, 5): # ------
-                                    for state_table_1 in range(0, 2): # States of each table
-                                        for state_table_2 in range(0, 2):
-                                            for state_table_3 in range(0, 2): # ------
-                                                state_rows.append([state_agent, order_1, order_2, order_3, state_group_1, state_group_2, 
-                                                state_group_3, state_table_1, state_table_2, state_table_3])  
-                                                state_count += 1
+        #for state_agent in range(0, 13): # 0 = free, rest is taken from action_dict
+        for order_1 in range(0, 5): # States of each order
+            for order_2 in range(0, 5):
+                for order_3 in range(0, 5): # -----
+                    for state_group_1 in range(0, 5): # States of each group
+                        for state_group_2 in range(0, 5):
+                            for state_group_3 in range(0, 5): # ------
+                                for state_table_1 in range(0, 2): # States of each table
+                                    for state_table_2 in range(0, 2):
+                                        for state_table_3 in range(0, 2): # ------
+                                            state_rows.append([order_1, order_2, order_3, state_group_1, state_group_2, 
+                                            state_group_3, state_table_1, state_table_2, state_table_3])  
+                                            state_count += 1
 
         return state_rows, state_count
 
@@ -439,27 +442,35 @@ class AgentControllerRL(Agent, Kitchen, Table, ClientGroup):
         #Define the q-table
         self.Q = np.random.uniform(low=0.0, high=1.0, size=(rows_count, q_cols))
 
-        all_actions = list(range(0, 14))
+        all_actions = list(range(0, q_cols)) #Define list with values 0-13
 
         for indx, row in enumerate(q_rows):
-            order_states = row[1:4]
-            group_states = row[4:7]
-            table_states = row[7:10]
+            order_states = row[0:3] #The elements in the env array that represent order states
+            group_states = row[3:6] #The elements in the env array that represent group states
+            table_states = row[6:9] #The elements in the env array that represent table states
             allowed = self.allowed_action_list(group_states, table_states, order_states)
-
-            for i in range(0, 13):
+            
+            nan_cnt = 0
+            for i in range(0, 13): #Wait is always allowed
                 if all_actions[i] not in allowed:
+                    nan_cnt += 1
                     self.Q[indx][i] = np.nan
+                if nan_cnt == 13:
+                    print(allowed)
+                    print(row)
 
     def q_update(self, Q_old, q_rows, current_state, next_state, R, act):
         
-        current_indx = q_rows.index(current_state)
-        next_indx = q_rows.index(next_state)
+        current_indx = q_rows.index(current_state) #Current state
+        next_indx = q_rows.index(next_state) #Next state
+
+        #Bellmans update equation
         self.Q[current_indx][act] = self.Q[current_indx][act] + self.alpha * ((R + self.gamma * np.nanmax(self.Q[next_indx])) - self.Q[current_indx][act])
 
+        #Kepp track of how much we change the Q-table
         self.diff += np.abs(np.nanmean(self.Q) - np.nanmean(Q_old))
 
-    def epsilon_greedy(self, Q, all_actions, state_indx, current_total_steps = 0, epsilon_initial = 1, epsilon_final = 0.2, anneal_timesteps = 10000, eps_type= "constant"):
+    def epsilon_greedy(self, Q, all_actions, state_indx, current_total_steps = 0, epsilon_initial = 0.2, epsilon_final = 0.1, anneal_timesteps = 1000, eps_type= "constant"):
         
         if eps_type == 'constant':
             epsilon = epsilon_final
@@ -473,11 +484,14 @@ class AgentControllerRL(Agent, Kitchen, Table, ClientGroup):
 
         elif eps_type == 'linear':
             p = np.random.uniform(0, 1)
-            if LinearEpsilon(anneal_timesteps, epsilon_final, epsilon_initial).value(current_total_steps) >= p:
+            val = LinearEpsilon(anneal_timesteps, epsilon_final, epsilon_initial).value(current_total_steps)
+            self.eps.append(val)
+            if val <= p:
                 action = np.nanargmax(Q[state_indx])
+                self.n_best += 1
             else:
                 action = np.random.choice(all_actions)
-
+                self.n_random += 1
         return action
 
 #for linear epsilon

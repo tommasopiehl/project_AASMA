@@ -2,61 +2,67 @@ import numpy as np
 import random
 from operator import itemgetter
 
-#from communicator import Communicator
-#from shared import SettingLoader
+# CLASS FOR TABLES
 
 class Table:
 
     def __init__(self, k):
         
-        self.size = k
-        self.index = None
-        self.group = None
-        self.status = 0 #0 = free, 1 = taken
-        self.order = None #array with dish for each client
+        self.size = k # int
+        self.index = None # int 
+        self.group = None # Group object
+        self.state = 0 #0 = free, 1 = taken
 
     def status2str(self):
         
         status_dict = {
             "free":(0),
-            "waiting for food":(1),
-            "eating":(2),
-            "waiting for bill":(3)
+            "taken":(1),
         }
 
         for key, val in status_dict.items():
-            if val == self.status:
+            if val == self.state:
                 return key
 
-    def make_order(self):
-        #generates a random order for the client
-
-        for i in range(0, self.size):
-            self.order[i] = random.randint(0, 2)
+# CLASS FOR GROUP-ORDER 
 
 class Order:
 
     def __init__(self):
-        self.dishes = None
-        self.table = None
-        self.group = None
-        self.status = None #0 = not made, 1 = waiting, 2 = cooking, 3 = done
 
-class Client:
+        self.group = None
+        self.size = None
+        self.state = None #0 = not made, 1 = waiting, 2 = cooking, 3 = done, 4 = served
+        self.dishes = None #NOT USED RIGHT NOW, array with index of each dish and preparation time
+
+    def reset_order(self):
+
+        self.state = 0
+
+# CLIENT-GROUP CLASS. CLIENTS ARE TREATED AS GROUPS
+
+class ClientGroup:
 
     def __init__(self):
-        self.client_id = None
-        self.group = None
+
         self.table = None
-        self.status = None #0 = wait for seat, 1 = waiting for food, 2 = eating, 3 = waiting for bill
-        self.waiting = np.zeros(4) #time spent in each client "state"
-        self.mood = 0
+        self.size = None
+        self.index = None
+        self.state = None # [0 = wait for seat, 1 = waiting for food, 2 = eating, 3 = waiting for bill]
+        self.order = None # Order-class object
+        self.waiting = np.zeros(4) # Time spent in each group "state"
+        #NOTE: 2000 IS USED TO AVOID USING NONE
+        self.stop_waiting = [[[1,2,3],[4,5],[6]],[7,8,9],[2000, 2000, 2000],[10,11,12]] #The actions from the agent for which the group are waiting, list[group_state][group_index]
+        self.mood = 0 # Current mood of group
+        self.batch = None # To track the total waiting time/mood for each "group of groups" that enters the restaurant
+        
 
     def compute_mood(self, wait_time):
-        #heuristic function for mood of client
+
+        # Heuristic function for mood of client
         
         mood_const_ls = [-0.5, -0.5, 0.5, -0.1]
-        mood_const = mood_const_ls[self.status]
+        mood_const = mood_const_ls[self.state]
 
         self.mood += mood_const*wait_time
 
@@ -71,40 +77,38 @@ class Client:
         }
 
         for key, val in status_dict.items():
-            if val == self.status:
+            if val == self.state:
                 return key
+
+    def reset_group(self):
+        
+        self.table = None
+        self.state = 0
+        self.waiting = np.zeros(4)
+        self.mood = 0
+        self.order.reset_order()
+
+#CLASS FOR THE KITCHEN
 
 class Kitchen:
 
-    def __init__(self, max_tables):
+    def __init__(self):
+        
         self.menu = None
-        self.plates = None
-        self.clean_plates = None
-        self.n_cooking = 0
-        self.n_waiting = 0
-        self.n_ready = np.zeros(max_tables) # dim 2 to be replaced by max amount of tables, [-1, table] if not being prepared, [0, table] if being prepared, [table(size), table] if ready
-        self.cooking_info = [] # [dish, time left, table]
-        self.ready_info = [] # [dish, table, whole table ready]
-        self.waiting_info = [] # [dish, preparation time, table]
-        self.serve_info = []
+        self.cooking_cnt = None
+        self.ready_cnt = None
+        self.waiting_cnt = None
+        self.cooking = [] # [time left, group]
+        self.ready = {} # {"group": amount ready}
+        self.waiting = [] # [preparation time, group]
 
     def init_menu(self):
 
-        # self.menu = {
-        #     "meat": [10, 10],
-        #     "fish": [10, 15],
-        #     "vegetarian" : [5, 10]
-        # }
-
-        #self.menu = [[5, 5], [5, 5], [5, 5]]
         self.menu = [[3,3]]
 
-    def count_plates(self):
-
-        return self.plates - self.clean_plates
-
     def status2str(self, dish_status):
-        #translates the status of a table to the string 
+
+        # Translates the status of an order to a string 
         
         status_dict = {
             "ready":(2),
@@ -116,297 +120,383 @@ class Kitchen:
             if val == dish_status:
                 return key
 
-    def format_order(self, table_order, table):
-
-        reform_order = np.zeros([table.size, 3])
-        i = 0
-
-        for order in table_order.dishes:
-            reform_order[i][0] = int(order)
-            reform_order[i][1] = self.menu[int(order)][1]
-            reform_order[i][2] = table.index
-            i += 1
-
-        return reform_order
-
     def add_order(self, table_order):
-        #takes order from entire table to kitchen, last element = 1 (dish is being prepared), = 0 (dish is waiting to be prepared)
+        # Takes order from entire table to kitchen
 
-        while self.n_cooking < 4 and len(self.waiting_info) > 0:
-            self.cooking_info.append(self.waiting_info.pop(0))
-            self.n_waiting -= 1
-            self.n_cooking += 1
+        while self.cooking_cnt < 4 and self.waiting_cnt > 0:
+            self.cooking.append(self.waiting.pop(0))
+            self.waiting_cnt -= 1
+            self.cooking_cnt += 1
             
-        for order in table_order:   
-            if self.n_cooking < 4:   
-                self.n_cooking += 1     
-                self.cooking_info.append(order)
+        for order in table_order.dishes:   
+            if self.cooking_cnt < 4:   
+                self.cooking_cnt += 1     
+                self.cooking.append([3, table_order.group.index])
             else:
-                self.n_waiting += 1
-                self.waiting_info.append(order)
+                self.waiting_cnt += 1
+                self.waiting.append([3, table_order.group.index])
 
-    def kitchen_timer(self, orders):
-        #tracks progress of cooking in kitchen
+    def kitchen_step(self, orders):
+        # Tracks progress of cooking in kitchen
 
-        self.cooking_info = sorted(self.cooking_info, key=itemgetter(1))
-
-        for i in range(0, len(self.cooking_info)):
-            if self.cooking_info[i][1] <= 0:
-                self.ready_info.append(self.cooking_info[i])
-                self.cooking_info[i][1] = -1
-                self.n_ready[int(self.cooking_info[i][2])] += 1
-                self.n_cooking -= 1
-                #CHECK IF ALL DISHES FOR A TABLE ARE DONE
-                if self.n_ready[int(self.cooking_info[i][2])] == int(self.cooking_info[i][2])+2:
-                    orders[int(self.cooking_info[i][2])].status = 3
+        for i in range(0, self.cooking_cnt):
+            if self.cooking[i][0] <= 0 and self.cooking[i][0] != -1:
+                self.ready[self.cooking[i][1]] += 1
+                self.cooking[i][0] = -1
+                self.cooking_cnt -= 1
+                self.ready_cnt += 1
+        
+        for i, order in enumerate(orders):
+            if self.ready[order.group.index] == order.size:
+                order.state = 3
                     
+        self.cooking[:] = [dish for dish in self.cooking if dish[0] != -1]
 
-        self.cooking_info[:] = [dish for dish in self.cooking_info if dish[1] != -1]
+        while self.cooking_cnt < 4 and self.waiting_cnt > 0:
+            self.cooking.append(self.waiting.pop(0))
+            self.waiting_cnt -= 1
+            self.cooking_cnt += 1
 
-        while self.n_cooking < 4 and len(self.waiting_info) > 0:
-            self.cooking_info.append(self.waiting_info.pop(0))
-            self.n_waiting -= 1
-            self.n_cooking += 1
-            self.clean_plates -= 1
+        for i in range(0, len(self.cooking)):
+            self.cooking[i][0] -= 1
 
-        for i in range(0, len(self.cooking_info)):
-            self.cooking_info[i][1] -= 1
-
-    def kitchen_serve(self, table):
+    def kitchen_serve(self, group):
         #removes served dishes from kitchen data
 
-        self.ready_info[:] = [dish for dish in self.ready_info if dish[2] != table.index]
-        self.n_ready[table.index] = 0
-
-    def dishes(self):
-        #cleans dishes
-
-        if (self.plates - self.clean_plates > 2):
-            self.clean_plates += 2
-        else:
-            self.clean_plates = self.plates
+        self.ready[group.index] = 0
+        self.ready_cnt -= group.size
 
 class Agent(Kitchen):
 
     def __init__(self):
         
-        self.action = None 
-        self.states = None
-        self.kitchen = Kitchen(max_tables=3)
-        self.action_list = None # [0 = seat at table, 1 = serve, 2 = bring bill, 3 = clean plates], 1 if avaliable, 0 if impossible
+        self.action = None # 0 < Current action < 13
+        self.state = None # [0 = free, 1 = busy]
+        self.action_dict = None # {"free" = [], "seat" = [groups, tables], "serve" = [groups], "bill" = [groups]}
+        self.kitchen = None  
+        self.R_total = None #Total reward achieved
 
-    def int2act(self, int_act, groups, tables):
+    def init_actions(self):
 
-        if int_act == 0:
-            self.act_seat(groups[0], tables[0], tables[0].order)
+        self.action_dict = {
+            "free":(),
+            "seat":([0,0], [0,1], [0,2], [1,1], [1,2], [2,2]),
+            "serve":(0, 1, 2),
+            "bill":(0, 1, 2)
+        }
+
+    def act2int(self, act, params):
+
+        if act == "free":
+            int_act = 0
+
+        if act == "seat":
+            int_act = self.action_dict["seat"].index(params) + 1
         
-        if int_act == 1:
-            self.act_seat(groups[0], tables[1], tables[1].order)
+        if act == "serve":
+            int_act = self.action_dict["serve"].index(params) + 7
 
-        if int_act == 2:
-            self.act_seat(groups[0], tables[2], tables[2].order)
+        if act == "bill":
+            int_act = self.action_dict["bill"].index(params) + 10
 
-        if int_act == 3:
-            self.act_seat(groups[1], tables[1], tables[1].order)
+        return int_act
 
-        if int_act == 4:
-            self.act_seat(groups[1], tables[2], tables[2].order)
+    def act2str(self, act):
 
-        if int_act == 5:
-            self.act_seat(groups[2], tables[2], tables[2].order)
+        if act == 0:
+            return "Wait"
+
+        if act > 0 and act <= 6:
+            g = self.action_dict["seat"][act-1][0]
+            t = self.action_dict["seat"][act-1][1]
+            return "seat group "+str(g)+" at table "+str(t)
+
+        if act > 6 and act <= 9:
+            g = self.action_dict["serve"][act-7]
+            return "serve group "+str(g)
+
+        if act > 9 and act <= 12:
+            g = self.action_dict["bill"][act-10]
+            return "bill to group "+str(g)
+
+
+    def int2act(self, int_act):
+
+        act = []
+
+        if int_act > 0 and int_act <= 6:
+            params = self.action_dict["seat"][int_act-1]
+            act.append(1)
+            act.append(params)
+            return act
         
-        if int_act == 6:
-            self.act_serve(tables[0])
+        if int_act > 6 and int_act <= 9:
+            params = self.action_dict["serve"].index(int_act - 7)
+            act.append(2)
+            act.append(params)
+            return act
 
-        if int_act == 7:
-            self.act_serve(tables[1])
+        if int_act > 9 and int_act <= 12:
+            params = self.action_dict["bill"].index(int_act - 10)
+            act.append(3)
+            act.append(params)
+            return act
 
-        if int_act == 8:
-            self.act_serve(tables[2])
+        act.append(0)
 
-        if int_act == 9:
-            self.act_bill(tables[0])
-
-        if int_act == 10:
-            self.act_bill(tables[1])
-
-        if int_act == 11:
-            self.act_bill(tables[2])
-
-    def act_seat(self, group, table, order):
+        return act
+    
+    def act_seat(self, group, table, kitchen):
         
-        order.status = 1
-        self.kitchen.add_order(self.kitchen.format_order(order, table))
-        
-        table.status = 1
+        group.order.state = 1
+        kitchen.add_order(group.order)
+        table.state = 1
         table.group = group
+        group.table = table
+        group.state = 1
+        group.mood += 5
 
-        for client in group:
-            client.status = 1
-            client.table = table
-            client.mood += 5
+    def act_serve(self, group, kitchen):
 
-    def act_serve(self, table):
+        group.state = 2
+        group.mood += 5
+        group.order.state = 4
+        kitchen.kitchen_serve(group)
 
-        for client in table.group:
-            client.status = 2
-            client.mood += 5
-
-        table.order.status = 3
-        self.kitchen.kitchen_serve(table)
-
-    def act_bill(self, table):
-
-        table.status = 0
-        table.order.status = 0
-
-        for client in table.group:
-            client.status = 4
-            client.mood += 5
+    def act_bill(self, group, table):
 
         table.group = None
+        table.state = 0
+        group.state = 4
+        group.table = None
+        group.mood += 5
 
-    def allowed_seat(self, group_states, table_states):       
+    def allowed_seat(self, groups, tables):       
+        #groups and tables are arrays of states not objects
 
         allowed = []
-        tables = [2, 3, 4] #predefined sizes of tables
+        table_sizes = [2, 3, 4]
+        group_sizes = [2, 3, 4]
         
-        for i, table_state in enumerate(table_states):
-            for j, group_state in enumerate(group_states):
-                if table_state == 0 and j+2 <= tables[i]:
+        for i, table_state in enumerate(tables):
+            for j, group_state in enumerate(groups):
+                if table_state == 0 and group_sizes[j] <= table_sizes[i]:
                     if group_state == 0:
-                        allowed.append([j, i]) #array where the groups that can be seated to the corresponding table are included
+                        allowed.append(self.act2int("seat", [j, i])) # j & i are indexes of group and table
 
         return allowed
 
-    #FIXA DENNAAAAAA!!!!!!
-    def allowed_serve(self, table_states, ready):
+    def allowed_serve(self, groups, orders):
 
         allowed = []
 
-        for i, table_state in enumerate(table_states):
-            if table_state == 1:
-                    if ready[i] == 3:
-                        allowed.append(i) #array where the tables to which we can bring food are included
+        for i, group_state in enumerate(groups):
+            if group_state == 1:
+                if orders[i] == 3:
+                    allowed.append(self.act2int("serve", i))
 
         return allowed
 
-    def allowed_bill(self, table_states):
+    def allowed_bill(self, groups):
 
         allowed = []
         
-        for i, state in enumerate(table_states):
-            if state == 3:
-                    allowed.append(i)
+        for i, group_state in enumerate(groups):
+            if group_state == 3:
+                allowed.append(self.act2int("bill", i))
 
-        return allowed #array where the tables to which we can bring the bill are included
+        return allowed
 
-class AgentControllerRL(Agent, Kitchen, Table, Client):
+    # VLAUES TO ADJUST FOR Q-LEARNING
 
-        def __init__(self):
+    def reward_seat(self, seat_group, table, all_groups, allowed):
+
+        R = 0
+        R -= np.abs(table.size - seat_group.size) * 5
         
-            self.alpha = 0
-            self.gamma = 0
-            self.eps_init = None
-            self.eps_final = None
-            self.episode_max = None
-            self.current_env = None
-            self.q_table = None
+        for group in all_groups:
+            if group.state != 4:
+                if group.stop_waiting[group.state][group.index] in allowed:
+                    R += seat_group.waiting[0] - group.waiting[group.state]
 
-        def env2array(self, agent, groups, tables, orders):
+        R += seat_group.waiting[0]
+        self.R_total += R
+
+        return R
+    
+    def reward_serve(self, serve_group, all_groups, allowed):
+        
+        R = 0
+
+        for group in all_groups:
+            if group.state != 4:
+                if group.stop_waiting[group.state][group.index] in allowed:
+                    R += serve_group.waiting[1] - group.waiting[group.state]
+
+        R += serve_group.waiting[serve_group.state]
+        self.R_total += R
+
+        return R
+
+    def reward_bill(self, bill_group, all_groups, allowed):
+        
+        R = 0
+
+        for group in all_groups:
+            if group.state != 4:
+                if group.stop_waiting[group.state][group.index] in allowed:
+                    R += bill_group.waiting[3] - group.waiting[group.state]
+
+        R += bill_group.waiting[3]
+        self.R_total += R
+
+        return R
+
+    def reward_wait(self, allowed_actions):
+
+        R = 0
+
+        R -= (len(allowed_actions)-1)*30
+        self.R_total += R
+
+        return R
+
+    #------------------------------
+
+class AgentControllerRL(Agent, Kitchen, Table, ClientGroup):
+
+    def __init__(self):
+        
+        # VLAUES TO ADJUST FOR Q-LEARNING
+        self.alpha = 0.8
+        self.gamma = 0.3
+        #------------------------------
+
+        self.eps_init = None
+        self.eps_final = None
+        self.episode_max = None
+        self.current_env = None
+        self.agent = None
+        self.Q = None #Not sure if its good to have the table as class attribute
+        self.diff = None #Difference between tables, used as threshold for convergence
+        self.best = 0
+        self.random = 0
+
+    def env2array(self, agent, groups, tables, orders):
             
-            self.current_env = []
-            self.current_env.append(agent.action)
-            for order in orders:
-                self.current_env.append(order.status)
-            for group in groups:
-                self.current_env.append(group[0].status)
-            for table in tables:
-                self.current_env.append(table.status)
+        self.current_env = []
+        for order in orders:
+            self.current_env.append(order.state)
+        for group in groups:
+            self.current_env.append(group.state)
+        for table in tables:
+            self.current_env.append(table.state)
 
-            return self.current_env
+        return self.current_env
 
-        def compute_rows(self):
+    def compute_rows(self):
 
-            state_rows = []
-            state_count = 0
+        state_rows = []
+        state_count = 0
 
-            #NOTE: WE JUST TRACK ORDERS OF TABLES/GROUPS INSTEAD OF INDIVIDUAL DISHES
+        #NOTE: WE JUST TRACK ORDERS OF TABLES/GROUPS INSTEAD OF INDIVIDUAL DISHES
 
-            for state_agent in range(0, 12):
-                for order_1 in range(0, 4):
-                    for order_2 in range(0, 4):
-                        for order_3 in range(0, 4):
-                            for state_group_1 in range(0, 4):
-                                for state_group_2 in range(0, 4):
-                                    for state_group_3 in range(0, 4):
-                                        for state_table_1 in range(0, 2):
-                                            for state_table_2 in range(0, 2):
-                                                for state_table_3 in range(0, 2):
-                                                    state_rows.append([state_agent, order_1, order_2, order_3, state_group_1, state_group_2, 
-                                                    state_group_3, state_table_1, state_table_2, state_table_3])  
-                                                    state_count += 1
+        #for state_agent in range(0, 13): # 0 = free, rest is taken from action_dict
+        for order_1 in range(0, 5): # States of each order
+            for order_2 in range(0, 5):
+                for order_3 in range(0, 5): # -----
+                    for state_group_1 in range(0, 5): # States of each group
+                        for state_group_2 in range(0, 5):
+                            for state_group_3 in range(0, 5): # ------
+                                for state_table_1 in range(0, 2): # States of each table
+                                    for state_table_2 in range(0, 2):
+                                        for state_table_3 in range(0, 2): # ------
+                                            state_rows.append([order_1, order_2, order_3, state_group_1, state_group_2, 
+                                            state_group_3, state_table_1, state_table_2, state_table_3])  
+                                            state_count += 1
 
-            #IMPORTANT: agent action = [0:seat(0, 0), 1:seat(0, 1), 2:seat(0, 2), 3:seat(1, 1), 4:seat(1, 2), 5:seat(2, 2), 6:serve(0), 7:serve(1), 8:serve(2), 9:bill(0), 10:bill(1), 11:bill(2)]
+        return state_rows, state_count
 
-            return state_rows, state_count
+    def allowed_action_list(self, groups, tables, orders):
 
-        def allowed_action_list(self, groups, tables, orders):
+        allowed = []
 
-            allowed = []
+        allowed.append(0)
+        for action in self.agent.allowed_seat(groups=groups, tables=tables):
+            allowed.append(action)
+        
+        for action in self.agent.allowed_serve(groups=groups, orders=orders):
+            allowed.append(action)
+        
+        for action in self.agent.allowed_bill(groups=groups):
+            allowed.append(action)
 
-            allowed.append(self.allowed_seat(group_states=groups, table_states=tables))
-            allowed.append(self.allowed_serve(table_states=tables, ready=orders))
-            allowed.append(self.allowed_bill(table_states=tables))
+        return allowed
 
-            return allowed
+    def q_init(self, q_rows, rows_count):
 
-        def q_learning(self, q_rows, rows_count, kitchen):
-            
-            #q_rows, rows_count = self.compute_rows() #q_rows = [action of agent, dishes in wait, dishes being cooked, dishes ready, state of group 1-3, state of table 1-3]
+        q_cols = 13 # each action and variation of action
 
-            q_cols = 12 # each action and variation of action
-            # discount = self.gamma
-            # lr = self.alpha
+        #Define the q-table
+        self.Q = np.random.uniform(low=0.0, high=1.0, size=(rows_count, q_cols))
 
-            #Define the q-table
-            self.q_table = np.random.uniform(low=0.0, high=1.0, size=(rows_count, q_cols))
+        all_actions = list(range(0, 14))
 
-            #IMPORTANT: agent action = [0:seat(0, 0), 1:seat(0, 1), 2:seat(0, 2), 3:seat(1, 1), 4:seat(1, 2), 5:seat(2, 2), 6:serve(0), 7:serve(1), 8:serve(2), 9:bill(0), 10:bill(1), 11:bill(2)]
+        for indx, row in enumerate(q_rows):
+            order_states = row[0:3]
+            group_states = row[3:6]
+            table_states = row[6:9]
+            allowed = self.allowed_action_list(group_states, table_states, order_states)
 
-            all_actions = [[[0,0],[0,1],[0,2],[1,1],[1,2],[2,2]],[0,1,2],[0,1,2]]
+            for i in range(0, 13):
+                if all_actions[i] not in allowed:
+                    self.Q[indx][i] = np.nan
 
-            for indx, row in enumerate(q_rows):
-                kitchen_states = row[1:4]
-                group_states = row[4:7]
-                table_states = row[7:10]
-                # allowed = [[groups, tables (seat)], [tables (serve)], [tables (bill)]]]
-                allowed = self.allowed_action_list(group_states, table_states, kitchen_states)
+    def q_update(self, Q_old, q_rows, current_state, next_state, R, act):
+        
+        current_indx = q_rows.index(current_state)
+        next_indx = q_rows.index(next_state)
+        self.Q[current_indx][act] = self.Q[current_indx][act] + self.alpha * ((R + self.gamma * np.nanmax(self.Q[next_indx])) - self.Q[current_indx][act])
 
-                for i in range(0, 6):
-                    if all_actions[0][i] not in allowed[0]:
-                        self.q_table[indx][i] = np.nan
-                for j in range(0, 3):
-                    if all_actions[1][j] not in allowed[1]:
-                        self.q_table[indx][j+6] = np.nan
-                for k in range(0, 3):
-                    if all_actions[2][k] not in allowed[2]:
-                        self.q_table[indx][k+9] = np.nan
+        self.diff += np.abs(np.nanmean(self.Q) - np.nanmean(Q_old))
 
-            return self.q_table
+    def epsilon_greedy(self, Q, all_actions, state_indx, current_total_steps = 0, epsilon_initial = 0.75, epsilon_final = 0.2, anneal_timesteps = 600, eps_type= "constant"):
+        
+        if eps_type == 'constant':
+            epsilon = epsilon_final
+            p = np.random.uniform(0, 1)
+            if p >= epsilon:
+                action = np.nanargmax(Q[state_indx])
+                print("best move", action)
+            else:
+                action = np.random.choice(all_actions)
+                print("random move", action)
 
-        def epsilon_greedy(self, all_actions, state_indx, current_total_steps = 0, epsilon_initial = 1, epsilon_final = 0.2, anneal_timesteps = 10000, eps_type= "constant"):
-            
-            if eps_type == 'constant':
-                epsilon = epsilon_final
-                p = np.random.uniform(0, 1)
-                if p >= epsilon:
-                    action = np.nanargmax(self.q_table[state_indx])
-                    print("best move", action)
-                else:
-                    action = np.random.choice(all_actions)
-                    print("random move", action)
-            return action
+        elif eps_type == 'linear':
+            p = np.random.uniform(0, 1)
+            if LinearEpsilon(anneal_timesteps, epsilon_final, epsilon_initial).value(current_total_steps) >= p:
+                action = np.nanargmax(Q[state_indx])
+                self.best += 1
+            else:
+                action = np.random.choice(all_actions)
+                self.random += 1
+
+        return action
+
+#for linear epsilon
+
+class LinearEpsilon(object):
+    def __init__(self, schedule_timesteps, final_p, initial_p=1.0):
+        self.schedule_timesteps = schedule_timesteps
+        self.final_p = final_p
+        self.initial_p = initial_p
+
+    def value(self, t):
+        # Return the annealed linear value
+        delta_e = self.final_p - self.initial_p
+        e_t = self.initial_p + delta_e * (t/self.schedule_timesteps)
+        return e_t
+
 
             
 
