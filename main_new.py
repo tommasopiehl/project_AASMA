@@ -6,7 +6,7 @@ import random
 def main_game(n_tables, n_groups, mode="constant"): 
 
     diff_Q = 0
-    n_batches = 35 # How many "groups of client-groups" we will let in during the entire process
+    n_batches = 10 # How many "groups of client-groups" we will let in during the entire process
     wait_ls = np.zeros(n_batches)
     reward_ls = np.zeros(n_batches)
     bad_moves = np.zeros(n_batches)

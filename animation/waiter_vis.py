@@ -82,3 +82,21 @@ class Waiter:
             self.blitt((self.vis.x, self.vis.y), screen)
             per = -1
         return per
+    
+    def bring_bill(self, kitchen: Kitchen, table: Table, per: float, screen, n_table: int, bill_img: pygame.Surface):
+        per = self.to_table(kitchen, table, per, screen, n_table, bill_img, "white")
+        return per
+
+    def bring_plates(self, kitchen: Kitchen, table: Table, per: float, screen, n_table: int, plate_img: pygame.Surface):
+        per = self.to_table(kitchen, table, per, screen, n_table, plate_img, "blue")
+        return per
+
+    def bring_guest(self, door: Door, table: Table, per: float, screen, n_table: int, guest_img: pygame.Surface):
+        per = self.to_table(door, table, per, screen, n_table, guest_img, "red")
+        return per
+
+    def bring_order(self, kitchen: Kitchen, per: float, screen, n_table: int):
+        per = self.to_kitchen(kitchen, per, screen)
+        if per == 1:
+            kitchen.place[n_table].fill("blue")
+        return per
