@@ -1,18 +1,19 @@
 from waiter_new import Agent, Table, ClientGroup, Kitchen, AgentControllerRL, Order
 import numpy as np
 import random
+import matplotlib.pyplot as plt
 
 # modes: constant = q-learning with constant epsilon, linear = q_learning with linear epsilon, random = random agent
-def main_game(n_tables, n_groups, mode="constant"): 
+def main_game(n_tables, n_groups, mode="constant", episodes = 20): 
 
     diff_Q = 0
-    n_batches = 35 # How many "groups of client-groups" we will let in during the entire process
+    n_batches = episodes # How many "groups of client-groups" we will let in during the entire process
     wait_ls = np.zeros(n_batches)
     reward_ls = np.zeros(n_batches)
     bad_moves = np.zeros(n_batches)
     mood_ls = np.zeros(n_batches)
     current_batch = 0
-    done_cnt = 0
+    q_diff = []
     
     agent = Agent()
     agent.action = 0
@@ -58,20 +59,23 @@ def main_game(n_tables, n_groups, mode="constant"):
         group.state = 0
         group.index = i
         group.size = i + 2
-        group.batch = current_batch
+        group.batch = 0
         order.state = 0
         order.size = group.size
 
         order.group = group
+        order.dishes = []
         group.order = order
 
-        order.dishes = np.zeros(order.group.size)
+        for j in range(n_tables[i]):
+            order.dishes.append(random.choice([0, 1]))
 
         tables.append(table)
         groups.append(group)
         orders.append(order)
 
     time = 0
+    episode_time = time
 
     while current_batch < n_batches:
                 
@@ -79,7 +83,6 @@ def main_game(n_tables, n_groups, mode="constant"):
                 print("time: ", time)
                 print("CURRENT DIFF", diff_Q)
                 print("CURRENT BATCH", current_batch)
-                print("-----------")
 
                 kitchen.kitchen_step(orders=orders)
                 reward = 0
@@ -87,11 +90,9 @@ def main_game(n_tables, n_groups, mode="constant"):
                 #Add waiting time to each group
                 for group in groups:
                     if group.state != 4:
-                        terminal = 0
                         group.waiting[group.state] += 1
+                        wait_ls[group.batch] += 1
                         group.compute_mood(group.waiting[group.state])
-
-                        wait_ls[group.batch] += group.waiting[group.state] #Track the total waiting time of each batch
                         mood_ls[group.batch] += group.mood #Track the mood of each batch
                     if group.state == 2: #Each group stays in eating for 4 steps before asking for bill
                         if group.waiting[2] == 4:
@@ -107,10 +108,10 @@ def main_game(n_tables, n_groups, mode="constant"):
 
                 #Epsilon greedy constant algorithm:
                 if mode == "constant":
-                    int_act = controller.epsilon_greedy(controller.Q, allowed_reformat, q_rows.index(current), eps_type= "constant")
+                    int_act = controller.epsilon_greedy(controller.Q, allowed_reformat, q_rows.index(current), current_total_steps = time, eps_type= "constant")
 
                 if mode == "linear":
-                    int_act = controller.epsilon_greedy(controller.Q, allowed_reformat, q_rows.index(current), eps_type= "linear")
+                    int_act = controller.epsilon_greedy(controller.Q, allowed_reformat, q_rows.index(current), current_total_steps = time, eps_type= "linear")
 
                 #Random agent
                 if mode == "random":
@@ -125,14 +126,13 @@ def main_game(n_tables, n_groups, mode="constant"):
                     reward_ls[current_batch] += reward
                     if len(allowed_reformat) > 1:
                         bad_moves[current_batch] += 1
-                    else:
-                        print("Only move")
 
                 if act_encode[0] == 1:
                     group = groups[act_encode[1][0]]
                     table = tables[act_encode[1][1]]
                     if group.size != table.size:
-                        bad_moves[current_batch] += 1
+                        bad_moves[group.batch] += 1
+
                     agent.act_seat(group, table, kitchen)
                     reward = agent.reward_seat(group, table, groups, allowed_reformat)
                     reward_ls[group.batch] += reward
@@ -150,7 +150,6 @@ def main_game(n_tables, n_groups, mode="constant"):
                     reward = agent.reward_bill(group, groups, allowed_reformat)
                     reward_ls[group.batch] += reward
 
-
                 #Epsilon greedy algorithm:
                 if mode == "constant" or mode == "linear":
                     next = controller.env2array(agent, groups=groups, tables=tables, orders=orders)
@@ -158,28 +157,35 @@ def main_game(n_tables, n_groups, mode="constant"):
                     
                     controller.q_update(Q_old, q_rows, current, next, reward, int_act)
 
-                    diff_Q += np.abs(np.nanmean(controller.Q) - np.nanmean(Q_old))
+                    q_diff.append(np.abs(np.nanmean(controller.Q) - np.nanmean(Q_old)))
 
                 time += 1
+                episode_time += 1
 
                 for group in groups:
                     if group.state == 4:
-                        done_cnt += 1
-                        if done_cnt == 3:
-                            for group in groups:
-                                group.reset_group()
-                                group.batch += 1
-                                current_batch = group.batch
-                                done_cnt = 0
+                        group.reset_group()
+                        group.batch += 1
+                        if group.batch > current_batch:
+                            current_batch = group.batch
+
 
     print("Result for ", mode, "mode with alpha:", controller.alpha, " and gamma:", controller.gamma)
     print("waiting time per batch:",wait_ls)
     print("total reward per batch:", reward_ls)
     print("overall mood of clients per batch:", mood_ls)
     print("bad moves per batch:", bad_moves)
+    print("random:", controller.n_random, " best:", controller.n_best)
     print("diff Q:", diff_Q)
+    plt.figure()
+    plt.plot(reward_ls)
+    plt.figure()
+    plt.plot(bad_moves)
+    plt.figure()
+    plt.plot(q_diff)
+    plt.show()
 
     return 0
 
-main_game(n_tables = (2, 3, 4), n_groups = (2, 3, 4), mode="linear")
+main_game(n_tables = (2, 3, 4), n_groups = (2, 3, 4), mode="linear", episodes = 200)
 
