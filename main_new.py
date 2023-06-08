@@ -2,9 +2,13 @@ from waiter_new import Agent, Table, ClientGroup, Kitchen, AgentControllerRL, Or
 import numpy as np
 import random
 import matplotlib.pyplot as plt
+import json
 
 # modes: constant = q-learning with constant epsilon, linear = q_learning with linear epsilon, random = random agent
 def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, gamma = 0.3): 
+    #
+    data = []
+    #
 
     n_batches = episodes # How many "groups of client-groups" we will let in during the entire process
 
@@ -109,6 +113,15 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
                 
                 current = controller.env2array(agent, groups=groups, tables=tables, orders=orders)
                 current_row = controller.Q[q_rows.index(current)]
+                
+                #
+                add_data = {
+                    "batch": current_batch,
+                    "time": time,
+                    "current": np.array(current).tolist()
+                }
+                data.append(add_data)
+                #
 
                 allowed_reformat = []
                 for i in range(len(current_row)):
@@ -198,6 +211,12 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
     plt.plot(q_diff)
     plt.show()
 
+    #
+    with open("states.json", "w") as json_file:
+        json.dump(data, json_file)
+        json_file.close()
+    #
+    
     return 0
 
 main_game(n_tables = (2, 3, 4), n_groups = (2, 3, 4), mode="linear", episodes = 200, alpha = 0.9, gamma = 0.3)
