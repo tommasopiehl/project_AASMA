@@ -77,29 +77,32 @@ class Agent():
         return act
     
     def act_seat(self, group, table, kitchen):
-        
-        group.order.state = 1
-        kitchen.add_order(group.order)
-        table.state = 1
-        table.group = group
-        group.table = table
-        group.state = 1
-        group.mood += 5
+
+        if table.state == 0 and group.state == 0:
+            table.state = 1
+            table.group = group
+            group.state = 1
+            group.table = table
+            kitchen.add_order(group.order)
+            group.order.state = 1
+            group.mood += 5
 
     def act_serve(self, group, kitchen):
 
-        group.state = 2
-        group.mood += 5
-        group.order.state = 4
-        kitchen.kitchen_serve(group)
+        if group.state == 1 and group.order.state == 3:
+            group.state = 2
+            group.mood += 5
+            group.order.state = 4
+            kitchen.kitchen_serve(group)
 
     def act_bill(self, group, table):
 
-        table.group = None
-        table.state = 0
-        group.state = 4
-        group.table = None
-        group.mood += 5
+        if group.state == 3:
+            group.state = 4
+            group.mood += 5
+            group.table = None
+            table.group = None
+            table.state = 0
 
     def allowed_seat(self, groups, tables):       
         #groups and tables are arrays of states not objects

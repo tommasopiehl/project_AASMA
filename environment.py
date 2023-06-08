@@ -125,7 +125,7 @@ class ClientGroup:
         self.index = index
         self.size = size
         self.batch = batch          # To track the total waiting time/mood for each "group of groups" that enters the restaurant
-        self.state = 0              # [0 = wait for seat, 1 = waiting for food, 2 = eating, 3 = waiting for bill]
+        self.state = 0              # [0 = wait for seat, 1 = waiting for food, 2 = eating, 3 = waiting for bill, 4 = done with their visit]
         self.table = None
         self.order = None           # Order-class object
         self.mood = 0               # Current mood of group

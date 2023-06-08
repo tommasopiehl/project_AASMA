@@ -180,7 +180,7 @@ def main_game(controller, tables, groups, orders, agent, mode="random"):
                 int_act = agent.action(allowed_reformat)
 
             agent.state = int_act
-
+            print(agent.act2str(int_act))
             act_encode = agent.int2act(int_act)
 
             if act_encode[0] == 0:
@@ -287,15 +287,16 @@ if __name__ == '__main__':
 
     for i in range(len(n_groups)):
         serve += (i, )
+        bill += (i, )
 
         for j in range(len(n_tables)):
             seat += ([i, j], )
-            
-    bill = serve
 
     agent = RandomAgent(seat, serve, bill)
     # agent = QLearning(seat, serve, bill)
     # agent = SARSA(seat, serve, bill)
+
+    print(agent.action_dict)
 
     # 3 - Evaluate agent
     main_game(controller, tables, groups, orders, agent, "random")
