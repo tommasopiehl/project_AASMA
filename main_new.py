@@ -1,12 +1,16 @@
 from waiter_new import Agent, Table, ClientGroup, Kitchen, AgentControllerRL, Order
 import numpy as np
 import random
+import json
 
 # modes: constant = q-learning with constant epsilon, linear = q_learning with linear epsilon, random = random agent
 def main_game(n_tables, n_groups, mode="constant"): 
+    #
+    data = []
+    #
 
     diff_Q = 0
-    n_batches = 10 # How many "groups of client-groups" we will let in during the entire process
+    n_batches = 3 # How many "groups of client-groups" we will let in during the entire process
     wait_ls = np.zeros(n_batches)
     reward_ls = np.zeros(n_batches)
     bad_moves = np.zeros(n_batches)
@@ -100,6 +104,15 @@ def main_game(n_tables, n_groups, mode="constant"):
                 current = controller.env2array(agent, groups=groups, tables=tables, orders=orders)
                 current_row = controller.Q[q_rows.index(current)]
 
+                #
+                add_data = {
+                    "batch": current_batch,
+                    "time": time,
+                    "current": np.array(current).tolist()
+                }
+                data.append(add_data)
+                #
+
                 allowed_reformat = []
                 for i in range(len(current_row)):
                     if(np.isnan(current_row[i]) == False):
@@ -178,6 +191,12 @@ def main_game(n_tables, n_groups, mode="constant"):
     print("overall mood of clients per batch:", mood_ls)
     print("bad moves per batch:", bad_moves)
     print("diff Q:", diff_Q)
+
+    #
+    with open("states.json", "w") as json_file:
+        json.dump(data, json_file)
+        json_file.close()
+    #
 
     return 0
 

@@ -17,48 +17,54 @@ def total_blitt(screen: pygame.Surface, waiter: Waiter, kitchen: Kitchen, table,
     waiter.blitt((waiter.vis.x, waiter.vis.y), screen)
 
 def index_data(data, batch: int, time: int):
-    for i in len(data):
+    for i in range(len(data)):
         if data[i]["batch"] == batch and data[i]["time"] == time:
             return i
     return False
 
 def action_waiter(data, batch: int, time: int):
     index = index_data(data, batch, time)
-    current = data[index]["current"]
-    old = data[index-1]["current"]
-    tot_t = len(current)/3
-
+    current = data[index]["current"][1:]
+    if index == 0:
+        old = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+    else:
+        old = data[index-1]["current"][1:]
+    tot_t = round(len(current)/3)
     skip = 0
     for i in range(tot_t):
-        if current[i] != old[i]:
+        if current[i+tot_t] != old[i+tot_t]:
             n_table = i
+            break
         elif i == tot_t-1:
             skip = 1
     
     if skip == 0:
-        if current[n_table] == 1:
-            return 1, n_table
-        elif current[n_table] == 2:
-            return 2, n_table
+        if current[n_table+tot_t] == 1:
+            return [1, n_table]
+        elif current[n_table+tot_t] == 2:
+            return [2, n_table]
         elif current[2*tot_t+n_table] == 0:
-            return 3, n_table
+            return [3, n_table]
     else:
         skip = 0
-        return 0
+        return [0, 0]
     
 def event_env(data, batch: int, time: int, kitchen: Kitchen, door: Door, table: Table):
     index = index_data(data, batch, time)
-    current = data[index]["current"]
-    old = data[index-1]["current"]
-    tot_t = len(current)/3
-
+    current = data[index]["current"][1:]
+    if index == 0:
+        old = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+    else:
+        old = data[index-1]["current"][1:]
+    tot_t = round(len(current)/3)
+    print(current)
     for i in range(tot_t):
-        if current[tot_t+i] != old[tot_t+i] and current[tot_t+i] == 3:
-            kitchen.popout(i)
-        if current[i] != old[i] and current[i] == 0:
-            door.popout(i)
         if current[i] != old[i] and current[i] == 3:
-            table.color("yellow")    
+            kitchen.popout(i)
+        if current[i+tot_t] != old[i+tot_t] and current[i+tot_t] == 0:
+            door.popout(i)
+        if current[i+tot_t] != old[i+tot_t] and current[i+tot_t] == 3:
+            table[i].color("yellow")    
 
 
 size_table = [2, 3, 4]
@@ -98,18 +104,18 @@ door.blitt((b_size-size_place, h_size/2-len(size_table)*size_place), screen)
 pygame.display.flip()
 
 # opening file
-with open("file.json", "r") as json_file:
+with open("states.json", "r") as json_file:
     data = json.load(json_file)
 
 # param for running
 batch = 1
-time = 0
+time = 1
 per = 0
 val = 0
 running = True
 co = 0
 per = 0
-door.popout(0)
+event_env(data, batch, time, kitchen, door, table)
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -117,33 +123,58 @@ while running:
     
     if co == 0:
         val, n_table = action_waiter(data, batch, time)
-    
-    if val == 1:
+    if val == 0:
         co = 1
-        per = waiter.bring_guest(door, table, per, screen, n_table, guest_img)
+        per = -1
+    elif val == 1:
+        if co == 0:
+            co = 1
+        if co == 1:
+            per = waiter.to_door(door, per, screen)
+            if per >= -1:
+                co = 2
+                per = 0
+        elif co == 2:
+            per = waiter.bring_guest(door, table, per, screen, n_table, guest_img)
+            if per >= -1:
+                co = 3
+                per = 0
+        else:
+            per = waiter.bring_order(kitchen, per, screen, n_table)
+        
     elif val == 2:
-        co = 1
-        per = waiter.bring_plates(door, table, per, screen, n_table, plate_img)
-    elif val == 3:
-        co = 1
-        per = waiter.bring_bill(door, table, per, screen, n_table, bill_img)
-    elif val == 4:
-        co = 1
-        per = waiter.bring_order(kitchen, per, screen , n_table)
+        if co == 0:
+            co = 1
+        if co == 1:
+            per = waiter.to_kitchen(kitchen, per, screen)
+            if per >= -1:
+                co = 2
+                per = 0
+        else:
+            per = waiter.bring_plates(door, table, per, screen, n_table, plate_img)
     
-    if per <= -1 and val == 1:
-        per = 0
-        val = 4
-    elif per <= -1:
+    elif val == 3:
+        if co == 0:
+            co = 1
+            per = 0.000001
+        if co == 1:
+            per = waiter.to_table(door, table, per, screen, n_table, bill_img, "white")
+            if per >= -1:
+                co = 2
+                per = 0
+        else:
+            per = waiter.bring_bill(door, table, per, screen, n_table, bill_img)
+    
+    if per <= -1:
         per = 0
         co = 0
         time += 1
         event_env(data, batch, time, kitchen, door, table)
 
     total_blitt(screen, waiter, kitchen, table, door)
-    text = fnt.render("per = "+str(per), True, "black")
+    text = fnt.render("val = "+str(val), True, "black")
     screen.blit(text, (b_size-200, 10))
     pygame.display.flip()
-    clk.tick(100)
+    clk.tick(50)
 
 pygame.quit()

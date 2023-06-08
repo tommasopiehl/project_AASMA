@@ -17,6 +17,11 @@ add_data = {
 
 #data[batch, time] = [guest1 4, guest2 4, guest3 4, plate1 4, plate2 4, plate3 4, table1 2, table2 2, table3 2]
 
-with open("file.json", "w") as json_file:
-    json.dump(data, json_file)
-    json_file.close()
+#with open("file.json", "w") as json_file:
+#    json.dump(data, json_file)
+#    json_file.close()
+
+with open("states.json", "r") as json_file:
+    data = json.load(json_file)
+
+print(len(data))
