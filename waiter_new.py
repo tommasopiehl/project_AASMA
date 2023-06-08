@@ -312,17 +312,25 @@ class Agent(Kitchen):
 
         return allowed
 
-    def reward_seat(self, seat_group, table, all_groups, allowed):
+    def reward_seat(self, seat_group, table, all_groups, all_tables, allowed):
 
         R = 0
-        R -= np.abs(table.size - seat_group.size) * 5
+
+        #FIXED THIS LAST NIGHT, BEFORE IT JUST CHECKED IF THE SIZE WAS DIFFERENT
+        # for other_table in all_tables:
+        #     if other_table.index != table.index and other_table.state == 0:
+        #         if table.size == seat_group.size:
+        #             R -= 15
+
+        R -= np.abs(table.size - seat_group.size)*5
+
         
         for group in all_groups:
             if group.state != 4:
                 if group.stop_waiting[group.state][group.index] in allowed:
                     R += seat_group.waiting[0] - group.waiting[group.state]
 
-        R += seat_group.waiting[0]
+        R += 10/(seat_group.waiting[0]+1)
         self.R_total += R
 
         return R
@@ -336,7 +344,7 @@ class Agent(Kitchen):
                 if group.stop_waiting[group.state][group.index] in allowed:
                     R += serve_group.waiting[1] - group.waiting[group.state]
 
-        R += serve_group.waiting[serve_group.state]
+        R += 10/(serve_group.waiting[serve_group.state]+1)
         self.R_total += R
 
         return R
@@ -350,7 +358,7 @@ class Agent(Kitchen):
                 if group.stop_waiting[group.state][group.index] in allowed:
                     R += bill_group.waiting[3] - group.waiting[group.state]
 
-        R += bill_group.waiting[3]
+        R += 10/(bill_group.waiting[3]+1)
         self.R_total += R
 
         return R
@@ -359,7 +367,7 @@ class Agent(Kitchen):
 
         R = 0
 
-        R -= (len(allowed_actions)-1)*30
+        R -= (len(allowed_actions)-1)*10
         self.R_total += R
 
         return R
@@ -369,8 +377,8 @@ class AgentControllerRL(Agent, Kitchen, Table, ClientGroup):
     def __init__(self):
         
         # VLAUES TO ADJUST FOR Q-LEARNING
-        self.alpha = 0.8
-        self.gamma = 0.3
+        self.alpha = None
+        self.gamma = None
         #------------------------------
 
         self.eps_init = None
@@ -470,7 +478,7 @@ class AgentControllerRL(Agent, Kitchen, Table, ClientGroup):
         #Kepp track of how much we change the Q-table
         self.diff += np.abs(np.nanmean(self.Q) - np.nanmean(Q_old))
 
-    def epsilon_greedy(self, Q, all_actions, state_indx, current_total_steps = 0, epsilon_initial = 0.2, epsilon_final = 0.1, anneal_timesteps = 1000, eps_type= "constant"):
+    def epsilon_greedy(self, Q, all_actions, state_indx, current_total_steps = 0, epsilon_initial = 0.1, epsilon_final = 0.1, anneal_timesteps = 2500, eps_type= "constant"):
         
         if eps_type == 'constant':
             epsilon = epsilon_final

@@ -4,16 +4,19 @@ import random
 import matplotlib.pyplot as plt
 
 # modes: constant = q-learning with constant epsilon, linear = q_learning with linear epsilon, random = random agent
-def main_game(n_tables, n_groups, mode="constant", episodes = 20): 
+def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, gamma = 0.3): 
 
-    diff_Q = 0
     n_batches = episodes # How many "groups of client-groups" we will let in during the entire process
-    wait_ls = np.zeros(n_batches)
-    reward_ls = np.zeros(n_batches)
-    bad_moves = np.zeros(n_batches)
-    mood_ls = np.zeros(n_batches)
-    current_batch = 0
-    q_diff = []
+
+    reward_ls = np.zeros(n_batches+1)
+    bad_moves = np.zeros(n_batches+1)
+    complete_ls = np.zeros(n_batches+1)
+    q_diff = np.zeros(n_batches+1)
+
+    current_batch = -1
+    converge_batch = -1
+    n_completed = 0
+    max_episode = 50
     
     agent = Agent()
     agent.action = 0
@@ -21,68 +24,76 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20):
     agent.R_total = 0
 
     controller = AgentControllerRL()
+    controller.alpha = alpha
+    controller.gamma = gamma
     controller.agent = agent
     controller.diff = 0
-
-    tables = []
-    groups = []
-    orders = []
-
-    #Init kitchen
-    
-    kitchen = Kitchen()
-    kitchen.init_menu()
-    kitchen.waiting_cnt = 0
-    kitchen.cooking_cnt = 0
-    kitchen.ready_cnt = 0
-    agent.kitchen = kitchen
-
-    for i in range(len(n_groups)):
-        kitchen.ready[i] = 0
 
     #Init q-table
 
     q_rows, rows_count = controller.compute_rows()
     controller.q_init(q_rows=q_rows, rows_count=rows_count)
 
-    # Init lists with all our table, group and order objects
-
-    for i in range(len(n_tables)):
-
-        table = Table(k = n_tables[i])
-        group = ClientGroup()
-        order = Order()
-
-        table.state = 0
-        table.index = i
-
-        group.state = 0
-        group.index = i
-        group.size = i + 2
-        group.batch = 0
-        order.state = 0
-        order.size = group.size
-
-        order.group = group
-        order.dishes = []
-        group.order = order
-
-        for j in range(n_tables[i]):
-            order.dishes.append(random.choice([0, 1]))
-
-        tables.append(table)
-        groups.append(group)
-        orders.append(order)
-
     time = 0
-    episode_time = time
 
     while current_batch < n_batches:
-                
-                print("-----------")
+
+        Q_old = controller.Q.copy()
+
+        current_batch += 1
+        episode_time = 0
+        episode_done = 0
+        done_ls = []
+
+        tables = []
+        groups = []
+        orders = []
+
+        #Init kitchen
+        
+        kitchen = Kitchen()
+        kitchen.init_menu()
+        kitchen.waiting_cnt = 0
+        kitchen.cooking_cnt = 0
+        kitchen.ready_cnt = 0
+        agent.kitchen = kitchen
+
+        for i in range(len(n_groups)):
+            kitchen.ready[i] = 0
+
+        # Init lists with all our table, group and order objects
+
+        for i in range(len(n_tables)):
+
+            table = Table(k = n_tables[i])
+            group = ClientGroup()
+            order = Order()
+
+            table.state = 0
+            table.index = i
+
+            group.state = 0
+            group.index = i
+            group.size = i + 2
+            group.batch = current_batch
+            order.state = 0
+            order.size = group.size
+
+            order.group = group
+            order.dishes = []
+            group.order = order
+
+            for j in range(n_tables[i]):
+                order.dishes.append(random.choice([0, 1]))
+
+            tables.append(table)
+            groups.append(group)
+            orders.append(order)
+
+        while episode_time < max_episode and episode_done == 0:
+
                 print("time: ", time)
-                print("CURRENT DIFF", diff_Q)
-                print("CURRENT BATCH", current_batch)
+                print("CURRENT EPISODE", current_batch)
 
                 kitchen.kitchen_step(orders=orders)
                 reward = 0
@@ -91,9 +102,7 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20):
                 for group in groups:
                     if group.state != 4:
                         group.waiting[group.state] += 1
-                        wait_ls[group.batch] += 1
                         group.compute_mood(group.waiting[group.state])
-                        mood_ls[group.batch] += group.mood #Track the mood of each batch
                     if group.state == 2: #Each group stays in eating for 4 steps before asking for bill
                         if group.waiting[2] == 4:
                             group.state = 3
@@ -134,7 +143,7 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20):
                         bad_moves[group.batch] += 1
 
                     agent.act_seat(group, table, kitchen)
-                    reward = agent.reward_seat(group, table, groups, allowed_reformat)
+                    reward = agent.reward_seat(group, table, groups, tables, allowed_reformat)
                     reward_ls[group.batch] += reward
 
                 if act_encode[0] == 2:
@@ -153,39 +162,45 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20):
                 #Epsilon greedy algorithm:
                 if mode == "constant" or mode == "linear":
                     next = controller.env2array(agent, groups=groups, tables=tables, orders=orders)
-                    Q_old = controller.Q.copy()
-                    
                     controller.q_update(Q_old, q_rows, current, next, reward, int_act)
 
-                    q_diff.append(np.abs(np.nanmean(controller.Q) - np.nanmean(Q_old)))
+                for group in groups:
+                    if group.state == 4 and group.index not in done_ls:
+                        done_ls.append(group.index)
+
+                if len(done_ls) == 3:
+                    episode_done = 1
 
                 time += 1
                 episode_time += 1
 
-                for group in groups:
-                    if group.state == 4:
-                        group.reset_group()
-                        group.batch += 1
-                        if group.batch > current_batch:
-                            current_batch = group.batch
+        if len(done_ls) == 3:  
+            n_completed += 1
+    
+        complete_ls[current_batch] = episode_time  
 
+        if mode == "constant" or mode == "linear":
+            q_diff[current_batch] = np.abs(np.nanmean(controller.Q) - np.nanmean(Q_old))
+        
 
     print("Result for ", mode, "mode with alpha:", controller.alpha, " and gamma:", controller.gamma)
-    print("waiting time per batch:",wait_ls)
     print("total reward per batch:", reward_ls)
-    print("overall mood of clients per batch:", mood_ls)
     print("bad moves per batch:", bad_moves)
     print("random:", controller.n_random, " best:", controller.n_best)
-    print("diff Q:", diff_Q)
+    print("n completed:", n_completed)
     plt.figure()
     plt.plot(reward_ls)
     plt.figure()
     plt.plot(bad_moves)
+    plt.figure()
+    plt.plot(complete_ls)
     plt.figure()
     plt.plot(q_diff)
     plt.show()
 
     return 0
 
-main_game(n_tables = (2, 3, 4), n_groups = (2, 3, 4), mode="linear", episodes = 200)
+main_game(n_tables = (2, 3, 4), n_groups = (2, 3, 4), mode="linear", episodes = 200, alpha = 0.9, gamma = 0.3)
+
+#CONVERGES LATER BECAUSE OF EPS_INIT = 0.5
 
