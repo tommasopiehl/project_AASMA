@@ -221,11 +221,11 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
 
     plt.show()
 
-    # #
-    # with open("states.json", "w") as json_file:
-    #     json.dump(data, json_file)
-    #     json_file.close()
-    # #
+    #
+    with open("states.json", "w") as json_file:
+        json.dump(data, json_file)
+        json_file.close()
+    #
     
     return 0
 

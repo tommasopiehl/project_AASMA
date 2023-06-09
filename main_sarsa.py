@@ -251,7 +251,7 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
     plt.xlabel("Episode")
     plt.ylabel("Time to complete")
 
-    # plt.show()
+    plt.show()
 
     return 0
 
