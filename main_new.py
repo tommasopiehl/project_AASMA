@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 # modes: constant = q-learning with constant epsilon, linear = q_learning with linear epsilon, random = random agent
 def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, gamma = 0.3): 
 
+    #CHANGE n_batches to episodes
     n_batches = episodes # How many "groups of client-groups" we will let in during the entire process
 
     reward_ls = np.zeros(n_batches+1)
@@ -14,9 +15,9 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
     q_diff = np.zeros(n_batches+1)
 
     current_batch = -1
-    converge_batch = -1
+    conv_batch = -1
     n_completed = 0
-    max_episode = 50
+    max_episode = 30
     
     agent = Agent()
     agent.action = 0
@@ -181,26 +182,38 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
 
         if mode == "constant" or mode == "linear":
             q_diff[current_batch] = np.abs(np.nanmean(controller.Q) - np.nanmean(Q_old))
-        
 
     print("Result for ", mode, "mode with alpha:", controller.alpha, " and gamma:", controller.gamma)
     print("total reward per batch:", reward_ls)
     print("bad moves per batch:", bad_moves)
     print("random:", controller.n_random, " best:", controller.n_best)
+    print("average episode len:", np.sum(complete_ls)/len(complete_ls))
     print("n completed:", n_completed)
+    print("n bad moves", np.sum(bad_moves))
+    print("total reward", np.sum(reward_ls))
+
     plt.figure()
     plt.plot(reward_ls)
+    plt.xlabel("Episode")
+    plt.ylabel("Total reward")
+
     plt.figure()
     plt.plot(bad_moves)
+    plt.xlabel("Episode")
+    plt.ylabel("Bad moves")
+
     plt.figure()
     plt.plot(complete_ls)
+    plt.xlabel("Episode")
+    plt.ylabel("Time to complete")
+
     plt.figure()
     plt.plot(q_diff)
+    plt.xlabel("Episode")
+    plt.ylabel("Q diff")
+
     plt.show()
 
-    return 0
+    return q_diff
 
-main_game(n_tables = (2, 3, 4), n_groups = (2, 3, 4), mode="linear", episodes = 200, alpha = 0.9, gamma = 0.3)
-
-#CONVERGES LATER BECAUSE OF EPS_INIT = 0.5
-
+main_game(n_tables = (2, 3, 4), n_groups = (2, 3, 4), mode="linear", episodes = 200, alpha = 0.7, gamma = 0.3)
