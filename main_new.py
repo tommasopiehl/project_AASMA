@@ -334,7 +334,8 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
                     "batch": current_batch,
                     "time": time,
                     "current": np.array(current).tolist(),
-                    "action": int_act
+                    "action": agent.act2str(int_act),
+                    "badMoves": bad_moves[current_batch]
                 }
                 data.append(add_data)
                 #

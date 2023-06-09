@@ -81,7 +81,8 @@ plate_img = pygame.transform.scale(pygame.image.load("animation/plate.png").conv
 guest_img = pygame.transform.scale(pygame.image.load("animation/guest.png").convert_alpha(), (50, 50))
 bill_img = pygame.transform.scale(pygame.image.load("animation/bill.png").convert_alpha(), (50, 50))
 
-fnt = pygame.font.SysFont("Arial", 20)
+fnt1 = pygame.font.SysFont("Arial", 20)
+fnt2 = pygame.font.SysFont("Arial", 20)
 
 waiter = Waiter(size_waiter)
 waiter.blitt(((b_size-size_waiter)/2, size_waiter/2), screen)
@@ -106,7 +107,7 @@ with open("states.json", "r") as json_file:
     data = json.load(json_file)
 
 # param for running
-batch = 6
+batch = 3
 time = retrieve_time(data, batch)
 dt = 0
 
@@ -115,6 +116,8 @@ association = np.zeros(round(len(data[0]["current"])/3))
 val = 0
 co = 0
 per = 0
+event_env(data, batch, time, kitchen, door, table)
+time +=1
 event_env(data, batch, time, kitchen, door, table)
 
 running = True
@@ -178,9 +181,11 @@ while running:
         event_env(data, batch, time, kitchen, door, table)
 
     total_blitt(screen, waiter, kitchen, table, door)
-    text = fnt.render("time = "+str(dt)+" val = "+str(val)+" tab = "+str(group[n_group].table), True, "black")
-    screen.blit(text, (b_size-200, 10))
+    text1 = fnt1.render("Bad moves = "+str(data[index_data(data, batch, time)-1]["badMoves"])+" Action = "+data[index_data(data, batch, time)-1]["action"], True, "black")
+    screen.blit(text1, (b_size-600, 10))
+    text2 = fnt2.render("Episode = "+str(batch)+" Time = "+str(time), True, "black")
+    screen.blit(text2, (b_size-200, h_size-30))
     pygame.display.flip()
-    clk.tick(200)
+    clk.tick(100)
 
 pygame.quit()
