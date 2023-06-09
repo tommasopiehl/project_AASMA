@@ -478,6 +478,14 @@ class AgentControllerRL(Agent, Kitchen, Table, ClientGroup):
         #Kepp track of how much we change the Q-table
         self.diff += np.abs(np.nanmean(self.Q) - np.nanmean(Q_old))
 
+    def sarsaUpdate(self, oldQ, qRows, currentState, nextState, R, act, nextAction):
+        current_indx = qRows.index(currentState)
+        next_indx = qRows.index(nextState)
+
+        self.Q[current_indx][act] = self.Q[current_indx][act] + self.alpha * ((R + self.gamma * self.Q[next_indx][nextAction]) - self.Q[current_indx][act])
+
+        self.diff += np.abs(np.nanmean(self.Q) - np.nanmean(oldQ))
+
     def epsilon_greedy(self, Q, all_actions, state_indx, current_total_steps = 0, epsilon_initial = 0.1, epsilon_final = 0.1, anneal_timesteps = 2500, eps_type= "constant"):
         
         if eps_type == 'constant':
@@ -500,6 +508,18 @@ class AgentControllerRL(Agent, Kitchen, Table, ClientGroup):
             else:
                 action = np.random.choice(all_actions)
                 self.n_random += 1
+
+        elif eps_type == 'sarsa':
+            p = np.random.uniform(0, 1)
+            val = LinearEpsilon(anneal_timesteps, epsilon_final, epsilon_initial).value(current_total_steps)
+            self.eps.append(val)
+            if val <= p:
+                action = np.nanargmax(Q[state_indx])
+                self.n_best += 1
+            else:
+                action = np.random.choice(all_actions)
+                self.n_random += 1
+
         return action
 
 #for linear epsilon
