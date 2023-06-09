@@ -4,11 +4,6 @@ from waiter_vis import Waiter
 import json
 import numpy as np
 
-# table = red -> waiting for food, blue -> eating, yellow -> waiting for bill, white -> free
-# kitchen = red -> ready, blue -> preparing, white -> none
-# door = red -> waiting for table, white -> none
-# waiter = red -> bring something + img, blue -> moving freely
-
 def total_blitt(screen: pygame.Surface, waiter: Waiter, kitchen: Kitchen, table, door: Door):
     screen.fill("white")
     for i in range(len(size_table)):
@@ -29,26 +24,27 @@ def index_data(data, batch: int, time: int):
             return i
     return False
 
-def action_waiter(data, group, batch: int, time: int):
+def action_waiter(data, group, table, batch: int, time: int):
     index = index_data(data, batch, time)
     current = data[index]["current"]
     old = data[index-1]["current"]
     tot_t = round(len(current)/3)
     for i in range(tot_t):
-        if current[i+tot_t] != old[i+tot_t]:
-            if current[i+tot_t] == 1:
-                for j in range(tot_t):
-                    if current[2*tot_t+j] != old[2*tot_t+j]:
-                        group[i].association(j, table[j])
-                return [1, i]
-            elif current[i+tot_t] == 2:
-                return [2, i]
-            elif current[2*tot_t+i] == 0:
-                return [3, i]
-        elif i == tot_t-1:
-            return [0, 0]
+        if current[i+tot_t] != old[i+tot_t] and current[i+tot_t] == 1:
+            for j in range(tot_t):
+                if current[2*tot_t+j] != old[2*tot_t+j]:
+                     group[i].association(j, table[j])
+            return [1, i]
+        elif current[i+tot_t] != old[i+tot_t] and current[i+tot_t] == 2:
+            return [2, i]
+        elif current[i+2*tot_t] != old[i+2*tot_t] and current[2*tot_t+i] == 0:
+            print(current)
+            print(old)
+            print("\n")
+            return [3, table[i].n_occ-2]
+    return [0, 0]
     
-def event_env(data, batch: int, time: int, kitchen: Kitchen, door: Door, table: Table):
+def event_env(data, batch: int, time: int, kitchen: Kitchen, door: Door, table: Table, group: Group):
     index = index_data(data, batch, time)
     current = data[index]["current"]
     old = data[index-1]["current"]
@@ -56,11 +52,11 @@ def event_env(data, batch: int, time: int, kitchen: Kitchen, door: Door, table: 
     # print(current)
     for i in range(tot_t):
         if current[i] != old[i] and current[i] == 3:
-            kitchen.popout(i)
+            kitchen.popout(group[i].table)
         if current[i+tot_t] != old[i+tot_t] and current[i+tot_t] == 0:
             door.popout(i)
         if current[i+tot_t] != old[i+tot_t] and current[i+tot_t] == 3:
-            table[i].color("yellow")    
+            table[group[i].table].color("yellow")    
 
 
 size_table = [2, 3, 4]
@@ -81,7 +77,8 @@ plate_img = pygame.transform.scale(pygame.image.load("animation/plate.png").conv
 guest_img = pygame.transform.scale(pygame.image.load("animation/guest.png").convert_alpha(), (50, 50))
 bill_img = pygame.transform.scale(pygame.image.load("animation/bill.png").convert_alpha(), (50, 50))
 
-fnt = pygame.font.SysFont("Arial", 20)
+fnt1 = pygame.font.SysFont("Arial", 20)
+fnt2 = pygame.font.SysFont("Arial", 20)
 
 waiter = Waiter(size_waiter)
 waiter.blitt(((b_size-size_waiter)/2, size_waiter/2), screen)
@@ -106,7 +103,7 @@ with open("states.json", "r") as json_file:
     data = json.load(json_file)
 
 # param for running
-batch = 6
+batch = 98
 time = retrieve_time(data, batch)
 dt = 0
 
@@ -115,7 +112,10 @@ association = np.zeros(round(len(data[0]["current"])/3))
 val = 0
 co = 0
 per = 0
-event_env(data, batch, time, kitchen, door, table)
+event_env(data, batch, time, kitchen, door, table, group)
+time += 1
+event_env(data, batch, time, kitchen, door, table, group)
+
 
 running = True
 while running:
@@ -126,7 +126,7 @@ while running:
         running = False
     
     if co == 0:
-        val, n_group = action_waiter(data, group, batch, time)
+        val, n_group = action_waiter(data, group, table, batch, time)
     
     if val == 0:
         co = 1
@@ -141,7 +141,7 @@ while running:
                 co = 2
                 per = 0
         elif co == 2:
-            per = waiter.bring_guest(door, table, per, screen, group[n_group].table, guest_img)
+            per = waiter.bring_guest(door, table, per, screen, n_group, group[n_group].table, guest_img)
             if per <= -1:
                 co = 3
                 per = 0
@@ -175,12 +175,14 @@ while running:
         co = 0
         time += 1
         dt += 1
-        event_env(data, batch, time, kitchen, door, table)
+        event_env(data, batch, time, kitchen, door, table, group)
 
     total_blitt(screen, waiter, kitchen, table, door)
-    text = fnt.render("time = "+str(dt)+" val = "+str(val)+" tab = "+str(group[n_group].table), True, "black")
-    screen.blit(text, (b_size-200, 10))
+    text1 = fnt1.render("Bad moves = "+str(data[index_data(data, batch, time)-1]["badMoves"])+" Action = "+data[index_data(data, batch, time)-1]["action"], True, "black")
+    screen.blit(text1, (b_size-600, 10))
+    text2 = fnt2.render("Episode = "+str(batch)+" Time = "+str(time-retrieve_time(data, batch)), True, "black")
+    screen.blit(text2, (b_size-200, h_size-30))
     pygame.display.flip()
-    clk.tick(200)
+    clk.tick(100)
 
 pygame.quit()
