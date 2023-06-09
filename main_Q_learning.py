@@ -230,4 +230,4 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
     return 0
 
 
-main_game(n_tables = (2, 3, 4), n_groups = (2, 3, 4), mode="linear", episodes = 100, alpha = 0.9, gamma = 0.3, initialEpsilon=0.4, finalEpsilon=0.1)
+main_game(n_tables = (2, 3, 4), n_groups = (2, 3, 4), mode="constant", episodes = 100, alpha = 0.9, gamma = 0.3, initialEpsilon=0.4, finalEpsilon=0.1)
