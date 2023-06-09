@@ -55,10 +55,9 @@ class ClientGroup:
         self.stop_waiting = [[[1,2,3],[4,5],[6]],[7,8,9],[2000, 2000, 2000],[10,11,12]] #The actions from the agent for which the group are waiting, list[group_state][group_index]
         self.mood = 0 # Current mood of group
         self.batch = None # To track the total waiting time/mood for each "group of groups" that enters the restaurant
-        
-
+    
+    #ANVÄNDS INTE
     def compute_mood(self, wait_time):
-
         # Heuristic function for mood of client
         
         mood_const_ls = [-0.5, -0.5, 0.5, -0.1]
@@ -66,8 +65,10 @@ class ClientGroup:
 
         self.mood += mood_const*wait_time
 
+    #-----------
+
     def status2str(self):
-        #translates the status of a table to the string 
+        # Translates the status of a table to the string 
         
         status_dict = {
             "waiting for seat":(0),
@@ -104,7 +105,7 @@ class Kitchen:
 
     def init_menu(self):
 
-        self.menu = [3, 3] #Cooking time for each of the two dishes
+        self.menu = [3, 5] #Cooking time for each of the two dishes
 
     def status2str(self, dish_status):
 
@@ -316,13 +317,7 @@ class Agent(Kitchen):
 
         R = 0
 
-        #FIXED THIS LAST NIGHT, BEFORE IT JUST CHECKED IF THE SIZE WAS DIFFERENT
-        # for other_table in all_tables:
-        #     if other_table.index != table.index and other_table.state == 0:
-        #         if table.size == seat_group.size:
-        #             R -= 15
-
-        R -= np.abs(table.size - seat_group.size)*5
+        R -= np.abs(table.size - seat_group.size) * 5
 
         
         for group in all_groups:
@@ -367,7 +362,7 @@ class Agent(Kitchen):
 
         R = 0
 
-        R -= (len(allowed_actions)-1)*10
+        R -= (len(allowed_actions)-1)*30
         self.R_total += R
 
         return R
@@ -486,17 +481,15 @@ class AgentControllerRL(Agent, Kitchen, Table, ClientGroup):
 
         self.diff += np.abs(np.nanmean(self.Q) - np.nanmean(oldQ))
 
-    def epsilon_greedy(self, Q, all_actions, state_indx, current_total_steps = 0, epsilon_initial = 0.1, epsilon_final = 0.1, anneal_timesteps = 2500, eps_type= "constant"):
+    def epsilon_greedy(self, Q, all_actions, state_indx, current_total_steps = 0, epsilon_initial = 0.4, epsilon_final = 0.1, anneal_timesteps = 2500, eps_type= "constant"):
         
         if eps_type == 'constant':
             epsilon = epsilon_final
             p = np.random.uniform(0, 1)
             if p >= epsilon:
                 action = np.nanargmax(Q[state_indx])
-                print("best move", action)
             else:
                 action = np.random.choice(all_actions)
-                print("random move", action)
 
         elif eps_type == 'linear':
             p = np.random.uniform(0, 1)
