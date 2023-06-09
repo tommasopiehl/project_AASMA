@@ -5,6 +5,7 @@ import numpy as np
 class Table:
 
     def __init__(self, size_place: int, size_table: int) -> None:
+        self.n_occ = 0
         self.obj = pygame.Surface((size_place*size_table/2, 2*size_place))
         self.obj.fill((150, 75, 0))
 
@@ -23,10 +24,22 @@ class Table:
         self.vis = screen.blit(self.obj, pos)
 
     def color(self, color):
-        for i in range(len(self.place)):
+        for i in range(self.n_occ):
             self.place[i].color(color)
             self.place[i].blitt(self.place[i].vis.topleft, self.obj)
 
+    def association(self, num: int):
+        self.n_occ = num
+
+class Group:
+
+    def __init__(self, tot: int) -> None:
+        self.table = -1
+        self.num = tot
+
+    def association(self, n_table: int, table: Table):
+        self.table = n_table
+        table.association(self.num)
 
 class Place:
 
@@ -53,13 +66,14 @@ class Kitchen:
         self.place = []
         for i in range(size):
             self.place.append(Place(size_place, False))
-            self.obj.blit(self.place[-1].obj, (size_place/8+i*size_place, 0))
+            self.place[-1].blitt((size_place/8+i*size_place, 0), self.obj)
 
     def blitt(self, pos: tuple, screen):
         self.vis = screen.blit(self.obj, pos)
 
     def popout(self, n_table: int):
-        self.place[n_table].obj.fill("red")
+        self.place[n_table].color("red")
+        self.place[n_table].blitt(self.place[n_table].vis.topleft, self.obj)
 
 
 class Door:
@@ -70,10 +84,11 @@ class Door:
         self.place = []
         for j in range(num_table):
             self.place.append(Place(size_place, True))
-            self.obj.blit(self.place[-1].obj, (0, size_place/8+j*size_place))
+            self.place[-1].blitt((0, size_place/8+j*size_place), self.obj)
     
     def blitt(self, pos: tuple, screen):
         self.vis = screen.blit(self.obj, pos)
 
     def popout(self, n_table: int):
-        self.place[n_table].obj.fill("red")
+        self.place[n_table].color("red")
+        self.place[n_table].blitt(self.place[n_table].vis.topleft, self.obj)

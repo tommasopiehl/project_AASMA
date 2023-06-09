@@ -4,6 +4,13 @@ import json
 #0 = not made, 1 = waiting, 2 = cooking, 3 = done, 4 = served   plate
 #0 = free, 1 = taken   table
 
+"""
+"free":(),
+"seat":([0,0], [0,1], [0,2], [1,1], [1,2], [2,2]),
+"serve":(0, 1, 2),
+"bill":(0, 1, 2)
+"""
+
 data = []
 
 num_batch = 0

@@ -113,15 +113,6 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
                 
                 current = controller.env2array(agent, groups=groups, tables=tables, orders=orders)
                 current_row = controller.Q[q_rows.index(current)]
-                
-                #
-                add_data = {
-                    "batch": current_batch,
-                    "time": time,
-                    "current": np.array(current).tolist()
-                }
-                data.append(add_data)
-                #
 
                 allowed_reformat = []
                 for i in range(len(current_row)):
@@ -140,6 +131,16 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
                     int_act = np.random.choice(allowed_reformat)
 
                 agent.action = int_act
+
+                #
+                add_data = {
+                    "batch": current_batch,
+                    "time": time,
+                    "current": np.array(current).tolist(),
+                    "action": int_act
+                }
+                data.append(add_data)
+                #
 
                 act_encode = agent.int2act(int_act)
 
@@ -219,7 +220,7 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
     
     return 0
 
-main_game(n_tables = (2, 3, 4), n_groups = (2, 3, 4), mode="linear", episodes = 200, alpha = 0.9, gamma = 0.3)
+main_game(n_tables = (2, 3, 4), n_groups = (2, 3, 4), mode="linear", episodes = 100, alpha = 0.9, gamma = 0.3)
 
 #CONVERGES LATER BECAUSE OF EPS_INIT = 0.5
 

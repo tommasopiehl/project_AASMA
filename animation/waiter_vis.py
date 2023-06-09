@@ -88,15 +88,22 @@ class Waiter:
         return per
 
     def bring_plates(self, kitchen: Kitchen, table: Table, per: float, screen, n_table: int, plate_img: pygame.Surface):
+        if per < 0.1:
+            kitchen.place[n_table].color("white")
+            kitchen.place[n_table].blitt(kitchen.place[n_table].vis.topleft, kitchen.obj)
         per = self.to_table(kitchen, table, per, screen, n_table, plate_img, "blue")
         return per
 
     def bring_guest(self, door: Door, table: Table, per: float, screen, n_table: int, guest_img: pygame.Surface):
+        if per < 0.1:
+            door.place[n_table].color("white")
+            door.place[n_table].blitt(door.place[n_table].vis.topleft, door.obj)
         per = self.to_table(door, table, per, screen, n_table, guest_img, "red")
         return per
 
     def bring_order(self, kitchen: Kitchen, per: float, screen, n_table: int):
         per = self.to_kitchen(kitchen, per, screen)
-        if per == 1:
-            kitchen.place[n_table].fill("blue")
+        if per >= 1:
+            kitchen.place[n_table].color("blue")
+            kitchen.place[n_table].blitt(kitchen.place[n_table].vis.topleft, kitchen.obj)
         return per
