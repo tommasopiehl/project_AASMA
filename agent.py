@@ -8,6 +8,8 @@ class Agent():
         # VALUES TO ADJUST FOR Q-LEARNING
         self.alpha = None
         self.gamma = None
+        self.initialEpsilon = 0.4
+        self.finalEpsilon = 0.1
         #------------------------------
 
         self.action = None # 0 < Current action < 13

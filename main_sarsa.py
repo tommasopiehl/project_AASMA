@@ -5,7 +5,7 @@ import random
 import matplotlib.pyplot as plt
 
 # modes: constant = q-learning with constant epsilon, linear = q_learning with linear epsilon, random = random agent
-def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, gamma = 0.3): 
+def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, gamma = 0.3, initialEpsilon = 0.4, finalEpsilon = 0.1): 
 
     n_batches = episodes # How many times groups will get in during the entire process
 
@@ -111,7 +111,7 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
             if(np.isnan(current_row[i]) == False):
                 allowed_reformat.append(i)
 
-        int_act = agent.epsilon_greedy(agent.Q, allowed_reformat, q_rows.index(current), current_total_steps = time, eps_type= "sarsa")
+        int_act = agent.epsilon_greedy(agent.Q, allowed_reformat, q_rows.index(current), current_total_steps = time, epsilon_initial=initialEpsilon, epsilon_final=finalEpsilon, eps_type= "sarsa")
         
         agent.action = int_act
 
@@ -170,7 +170,7 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
                     if(np.isnan(nextRow[i]) == False):
                         allowed_reformat.append(i)
 
-                nextAct = agent.epsilon_greedy(agent.Q, allowed_reformat, q_rows.index(nextState), current_total_steps = time, eps_type= "linear")
+                nextAct = agent.epsilon_greedy(agent.Q, allowed_reformat, q_rows.index(nextState), current_total_steps = time, epsilon_initial=initialEpsilon, epsilon_final=finalEpsilon, eps_type= "linear")
 
                 agent.action = nextAct
 
@@ -236,28 +236,23 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
     print("n bad moves", np.sum(bad_moves))
     print("total reward", np.sum(reward_ls))
 
-    # plt.figure()
-    # plt.plot(reward_ls)
-    # plt.xlabel("Episode")
-    # plt.ylabel("Total reward")
+    plt.figure()
+    plt.plot(reward_ls)
+    plt.xlabel("Episode")
+    plt.ylabel("Total reward")
 
-    # plt.figure()
-    # plt.plot(bad_moves)
-    # plt.xlabel("Episode")
-    # plt.ylabel("Bad moves")
+    plt.figure()
+    plt.plot(bad_moves)
+    plt.xlabel("Episode")
+    plt.ylabel("Bad moves")
 
-    # plt.figure()
-    # plt.plot(complete_ls)
-    # plt.xlabel("Episode")
-    # plt.ylabel("Time to complete")
-
-    # plt.figure()
-    # plt.plot(q_diff)
-    # plt.xlabel("Episode")
-    # plt.ylabel("Q diff")
+    plt.figure()
+    plt.plot(complete_ls)
+    plt.xlabel("Episode")
+    plt.ylabel("Time to complete")
 
     # plt.show()
 
     return 0
 
-main_game(n_tables = (2, 3, 4), n_groups = (2, 3, 4), mode="sarsa", episodes = 100, alpha = 0.7, gamma = 0.3)
+main_game(n_tables = (2, 3, 4), n_groups = (2, 3, 4), mode="sarsa", episodes = 100, alpha = 0.7, gamma = 0.3, initialEpsilon = 0.4, finalEpsilon = 0.1)

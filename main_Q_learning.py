@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import json
 
 # modes: constant = q-learning with constant epsilon, linear = q_learning with linear epsilon, random = random agent
-def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, gamma = 0.3): 
+def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, gamma = 0.3, initialEpsilon = 0.4, finalEpsilon = 0.1): 
     #
     data = []
     #
@@ -120,10 +120,10 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
 
             #Epsilon greedy constant algorithm:
             if mode == "constant":
-                int_act = agent.epsilon_greedy(agent.Q, allowed_reformat, q_rows.index(current), current_total_steps = time, eps_type= "constant")
+                int_act = agent.epsilon_greedy(agent.Q, allowed_reformat, q_rows.index(current), current_total_steps = time, epsilon_initial=initialEpsilon, epsilon_final=finalEpsilon, eps_type= "constant")
 
             if mode == "linear":
-                int_act = agent.epsilon_greedy(agent.Q, allowed_reformat, q_rows.index(current), current_total_steps = time, eps_type= "linear")
+                int_act = agent.epsilon_greedy(agent.Q, allowed_reformat, q_rows.index(current), current_total_steps = time, epsilon_initial=initialEpsilon, epsilon_final=finalEpsilon, eps_type= "linear")
 
             #Random agent
             if mode == "random":
@@ -219,11 +219,6 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
     plt.xlabel("Episode")
     plt.ylabel("Time to complete")
 
-    plt.figure()
-    plt.plot(q_diff)
-    plt.xlabel("Episode")
-    plt.ylabel("Q diff")
-
     plt.show()
 
     # #
@@ -235,4 +230,4 @@ def main_game(n_tables, n_groups, mode="constant", episodes = 20, alpha = 0.8, g
     return 0
 
 
-main_game(n_tables = (2, 3, 4), n_groups = (2, 3, 4), mode="linear", episodes = 100, alpha = 0.9, gamma = 0.3)
+main_game(n_tables = (2, 3, 4), n_groups = (2, 3, 4), mode="linear", episodes = 100, alpha = 0.9, gamma = 0.3, initialEpsilon=0.4, finalEpsilon=0.1)
